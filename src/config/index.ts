@@ -7,6 +7,7 @@ const defaultConfig = {
   port: process.env.PORT || 3000,
   initTimeout: process.env.INIT_TIMEOUT || 300000,
   basePath: process.env.BASE_PATH || '',
+  publicBaseUrl: process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || '',
   readonly: 'true' === process.env.READONLY || false,
   mcpHubName: 'mcphub',
   mcpHubVersion: getPackageVersion(),

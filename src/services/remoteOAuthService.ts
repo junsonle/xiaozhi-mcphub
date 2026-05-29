@@ -82,9 +82,25 @@ const removeStateParts = (
   writeState(filePath, state);
 };
 
+const trimTrailingSlashes = (value: string): string => value.replace(/\/+$/, '');
+
+const normalizeBasePath = (value: string): string => {
+  if (!value) {
+    return '';
+  }
+
+  const withoutTrailingSlashes = trimTrailingSlashes(value);
+  return withoutTrailingSlashes.startsWith('/') ? withoutTrailingSlashes : `/${withoutTrailingSlashes}`;
+};
+
 const buildRedirectUrl = (serverName: string): string => {
-  const basePath = config.basePath || '';
-  const baseUrl = `http://localhost:${config.port}${basePath}`;
+  const basePath = normalizeBasePath(config.basePath || '');
+  const publicBaseUrl = trimTrailingSlashes(config.publicBaseUrl || '');
+
+  const baseUrl = publicBaseUrl
+    ? `${publicBaseUrl}${basePath}`
+    : `http://localhost:${config.port}${basePath}`;
+
   return `${baseUrl}/api/oauth/callback/${encodeURIComponent(serverName)}`;
 };
 
