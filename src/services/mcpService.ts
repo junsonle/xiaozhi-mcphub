@@ -23,7 +23,7 @@ import { getDataService } from './services.js';
 import { getSystemConfigService } from './systemConfigService.js';
 import { getMcpServerService } from './mcpServerService.js';
 import { isDatabaseConnected } from '../db/connection.js';
-import { createRemoteOAuthProvider } from './remoteOAuthService.js';
+import { createRemoteOAuthProvider, getPendingRemoteOAuthAuth } from './remoteOAuthService.js';
 
 const servers: { [sessionId: string]: Server } = {};
 
@@ -819,8 +819,11 @@ export const initializeClientsFromSettings = async (
             `Failed to connect client for server ${name} by error: ${error} with stack: ${stack}`,
           );
         }
+        const pendingOAuthAuth = getPendingRemoteOAuthAuth(name);
         serverInfo.status = 'disconnected';
-        serverInfo.error = `Failed to connect: ${stack || message} `;
+        serverInfo.error = pendingOAuthAuth
+          ? `OAuth authorization required. Open this URL to login: ${pendingOAuthAuth.authUrl}`
+          : `Failed to connect: ${stack || message} `;
       });
     console.log(`Initialized client for server: ${name}`);
   }

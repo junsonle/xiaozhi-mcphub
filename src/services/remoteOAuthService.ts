@@ -265,6 +265,18 @@ export const createRemoteOAuthProvider = (
   return new RemoteMcpOAuthProvider(serverName, serverConfig);
 };
 
+export const getPendingRemoteOAuthAuth = (serverName: string): PendingOAuthAuth | undefined => {
+  cleanupPendingAuths();
+
+  const pendingAuth = pendingAuths.get(serverName);
+  if (!pendingAuth) {
+    return undefined;
+  }
+
+  const { createdAt: _createdAt, ...result } = pendingAuth;
+  return result;
+};
+
 export const getPendingRemoteOAuthAuths = (): PendingOAuthAuth[] => {
   cleanupPendingAuths();
 
