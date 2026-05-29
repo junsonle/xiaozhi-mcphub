@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
@@ -301,6 +303,27 @@ const buildRemoteAuthHeaders = (conf: ServerConfig): Record<string, string> => {
   return {};
 };
 
+// Helper function to check whether a stdio command is available before spawning it
+const isCommandAvailable = (command: string, envPath: string): boolean => {
+  const hasPathSeparator = command.includes('/') || command.includes('\\');
+  if (hasPathSeparator) {
+    return fs.existsSync(command);
+  }
+
+  const pathEntries = envPath.split(path.delimiter).filter(Boolean);
+  const extensions =
+    process.platform === 'win32'
+      ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM')
+          .split(';')
+          .filter(Boolean)
+          .map((ext) => ext.toLowerCase())
+      : [''];
+
+  return pathEntries.some((entry) =>
+    extensions.some((ext) => fs.existsSync(path.join(entry, `${command}${ext}`))),
+  );
+};
+
 // Helper function to create transport based on server configuration
 const createTransportFromConfig = async (name: string, conf: ServerConfig): Promise<any> => {
   let transport;
@@ -412,6 +435,12 @@ const createTransportFromConfig = async (name: string, conf: ServerConfig): Prom
         conf.command === 'node')
     ) {
       env['npm_config_registry'] = systemConfig.install.npmRegistry;
+    }
+
+    if (!isCommandAvailable(conf.command, env['PATH'])) {
+      throw new Error(
+        `Stdio command '${conf.command}' is not available in PATH. Install it in the runtime environment or disable server '${name}'.`,
+      );
     }
 
     transport = new StdioClientTransport({
@@ -658,7 +687,23 @@ export const initializeClientsFromSettings = async (
         continue;
       }
     } else {
-      transport = await createTransportFromConfig(name, conf);
+      try {
+        transport = await createTransportFromConfig(name, conf);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Skipping MCP server '${name}': ${message}`);
+        serverInfos.push({
+          name,
+          owner: conf.owner,
+          status: 'disconnected',
+          error: message,
+          tools: [],
+          prompts: [],
+          createTime: Date.now(),
+          enabled: conf.enabled === undefined ? true : conf.enabled,
+        });
+        continue;
+      }
     }
 
     const client = new Client(
@@ -761,11 +806,21 @@ export const initializeClientsFromSettings = async (
         }
       })
       .catch((error) => {
-        console.error(
-          `Failed to connect client for server ${name} by error: ${error} with stack: ${error.stack}`,
-        );
+        const message = error instanceof Error ? error.message : String(error);
+        const stack = error instanceof Error ? error.stack : undefined;
+        const isMissingCommand =
+          (error as NodeJS.ErrnoException)?.code === 'ENOENT' ||
+          message.includes('spawn') && message.includes('ENOENT');
+
+        if (isMissingCommand) {
+          console.warn(`MCP server '${name}' could not start because its stdio command is unavailable: ${message}`);
+        } else {
+          console.error(
+            `Failed to connect client for server ${name} by error: ${error} with stack: ${stack}`,
+          );
+        }
         serverInfo.status = 'disconnected';
-        serverInfo.error = `Failed to connect: ${error.stack} `;
+        serverInfo.error = `Failed to connect: ${stack || message} `;
       });
     console.log(`Initialized client for server: ${name}`);
   }
