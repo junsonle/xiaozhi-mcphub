@@ -43,7 +43,7 @@ COPY . .
 # Download the latest servers.json from mcpm.sh and replace the existing file
 RUN curl -s -f --connect-timeout 10 https://mcpm.sh/api/servers.json -o servers.json || echo "Failed to download servers.json, using bundled version"
 
-RUN npm run frontend:build && npm run build
+RUN npm run build
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

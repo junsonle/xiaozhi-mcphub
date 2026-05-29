@@ -19,6 +19,7 @@
   "scripts": {
     "build": "npm run backend:build && npm run frontend:build",
     "backend:build": "tsc",
+    "prestart": "npm run backend:build",
     "start": "node dist/index.js",
     "backend:dev": "tsx watch src/index.ts",
     "backend:debug": "tsx watch src/index.ts --inspect",
