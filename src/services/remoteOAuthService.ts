@@ -203,6 +203,10 @@ class RemoteMcpOAuthProvider implements OAuthClientProvider {
     pendingAuths.delete(this.serverName);
   }
 
+  async validateResourceURL(): Promise<URL | undefined> {
+    return undefined;
+  }
+
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
     cleanupPendingAuths();
 

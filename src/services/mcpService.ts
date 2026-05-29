@@ -616,6 +616,22 @@ export const initializeClientsFromSettings = async (
       continue;
     }
 
+    const pendingOAuthAuth = conf.auth?.type === 'oauth' ? getPendingRemoteOAuthAuth(name) : undefined;
+    if (pendingOAuthAuth) {
+      serverInfos.push({
+        name,
+        owner: conf.owner,
+        status: 'disconnected',
+        error: `OAuth authorization required. Open this URL to login: ${pendingOAuthAuth.authUrl}`,
+        tools: [],
+        prompts: [],
+        createTime: Date.now(),
+        enabled: conf.enabled === undefined ? true : conf.enabled,
+      });
+      console.log(`Skipping MCP server '${name}' while OAuth authorization is pending: ${pendingOAuthAuth.authUrl}`);
+      continue;
+    }
+
     let transport;
     let openApiClient;
     if (conf.type === 'openapi') {
