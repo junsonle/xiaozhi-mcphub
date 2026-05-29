@@ -82,12 +82,12 @@ docker compose logs -f mcphub
 
 ### 方式三：本地开发
 
-依赖：Node.js 18+/20+、pnpm、PostgreSQL 16+（推荐使用 compose 中的 `db` 服务）。
+依赖：Node.js 18+/20+、npm、PostgreSQL 16+（推荐使用 compose 中的 `db` 服务）。
 
 ```bash
 git clone https://github.com/huangjunsen0406/xiaozhi-mcphub.git
 cd xiaozhi-mcphub
-pnpm install
+npm install
 
 # 启动本地数据库（可选，使用仓库 compose 的 db）
 docker compose up -d db
@@ -96,7 +96,7 @@ docker compose up -d db
 export DATABASE_URL="postgres://xiaozhi:xiaozhi123456@localhost:5432/xiaozhi_mcphub"
 
 # 同时启动后端（:3000）与前端（Vite :5173）
-pnpm dev
+npm run dev
 ```
 
 访问前端开发站点：`http://localhost:5173`（前端通过代理访问后端 `:3000`）。

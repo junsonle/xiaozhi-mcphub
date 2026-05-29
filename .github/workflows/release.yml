@@ -34,14 +34,11 @@ jobs:
         with:
           node-version: '20.x'
 
-      - name: Enable Corepack
-        run: corepack enable
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm install
 
       - name: Build application
-        run: pnpm build
+        run: npm run build
 
       - name: Create distribution package
         run: |
@@ -54,7 +51,7 @@ jobs:
           cp -r frontend/dist "$PACKAGE_DIR/frontend-dist"
           
           # 复制必要文件
-          cp package.json pnpm-lock.yaml "$PACKAGE_DIR/"
+          cp package.json "$PACKAGE_DIR/"
           cp README.md README.zh.md LICENSE "$PACKAGE_DIR/"
           cp docker-compose.yml Dockerfile entrypoint.sh "$PACKAGE_DIR/"
           cp nginx.conf.example servers.json "$PACKAGE_DIR/"
@@ -63,10 +60,10 @@ jobs:
           cat > "$PACKAGE_DIR/install.sh" << 'EOF'
           #!/bin/bash
           echo "小智 MCP Hub v$VERSION 安装脚本"
-          echo "请确保已安装 Node.js 20+ 和 pnpm"
+          echo "请确保已安装 Node.js 20+ 和 npm"
           echo ""
-          echo "1. 安装依赖: pnpm install --prod"
-          echo "2. 启动服务: pnpm start"
+          echo "1. 安装依赖: npm install --omit=dev"
+          echo "2. 启动服务: npm start"
           echo "3. 或使用 Docker: docker-compose up -d"
           EOF
           chmod +x "$PACKAGE_DIR/install.sh"

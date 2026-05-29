@@ -13,10 +13,10 @@ MCPHub is a TypeScript/Node.js MCP server management hub that provides unified a
 ## Development Environment
 
 ```bash
-pnpm install
-pnpm dev           # Start both backend and frontend
-pnpm backend:dev   # Backend only
-pnpm frontend:dev  # Frontend only
+npm install
+npm run dev           # Start both backend and frontend
+npm run backend:dev   # Backend only
+npm run frontend:dev  # Frontend only
 ```
 
 ## Project Conventions

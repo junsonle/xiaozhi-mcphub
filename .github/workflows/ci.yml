@@ -23,20 +23,17 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Enable Corepack
-        run: corepack enable
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm install
 
       - name: Run linter
-        run: pnpm lint
+        run: npm run lint
 
       - name: Run type checking
-        run: pnpm backend:build
+        run: npm run backend:build
 
       - name: Run tests
-        run: pnpm test:ci
+        run: npm run test:ci
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -58,14 +55,11 @@ jobs:
   #       with:
   #         node-version: '20.x'
 
-  #     - name: Enable Corepack
-  #       run: corepack enable
-
   #     - name: Install dependencies
-  #       run: pnpm install --frozen-lockfile
+  #       run: npm install
 
   #     - name: Build application
-  #       run: pnpm build
+  #       run: npm run build
 
   #     - name: Verify build artifacts
   #       run: node scripts/verify-dist.js
@@ -95,14 +89,11 @@ jobs:
   #       with:
   #         node-version: '20.x'
 
-  #     - name: Enable Corepack
-  #       run: corepack enable
-
   #     - name: Install dependencies
-  #       run: pnpm install --frozen-lockfile
+  #       run: npm install
 
   #     - name: Build application
-  #       run: pnpm build
+  #       run: npm run build
 
   #     - name: Run integration tests
   #       run: |

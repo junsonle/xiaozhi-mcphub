@@ -26,7 +26,7 @@ MCPHub is a centralized hub server for managing multiple Model Context Protocol 
 - **Component Structure:** Modular components and pages within `frontend/src`.
 
 ### Infrastructure
-- **Build Tool:** `pnpm` (package manager and script runner).
+- **Build Tool:** `npm` (package manager and script runner).
 - **Containerization:** Docker (`Dockerfile` provided).
 - **Process Management:** Not explicitly defined in core files, but likely managed by Docker or host system.
 
@@ -71,7 +71,6 @@ C:\code\mcphub\
 ├───mcp_settings.json     # Main configuration file for MCP servers and users
 ├───servers.json          # Marketplace server definitions
 ├───package.json          # Node.js project definition, dependencies, and scripts
-├───pnpm-lock.yaml        # Dependency lock file
 ├───tsconfig.json         # TypeScript compiler configuration (Backend)
 ├───README.md             # Project documentation
 ├───Dockerfile            # Docker image definition
@@ -82,23 +81,23 @@ C:\code\mcphub\
 
 ### Prerequisites
 - Node.js (>=18.0.0 or >=20.0.0)
-- pnpm
+- npm
 - Python 3.13 (for some upstream servers and uvx)
 - Docker (optional, for containerized deployment)
 - PostgreSQL with pgvector (optional, for Smart Routing)
 
 ### Local Development
 1.  Clone the repository.
-2.  Install dependencies: `pnpm install`.
-3.  Start development servers: `pnpm dev`.
-    - This runs `pnpm backend:dev` (Node.js with `tsx watch`) and `pnpm frontend:dev` (Vite dev server) concurrently.
+2.  Install dependencies: `npm install`.
+3.  Start development servers: `npm run dev`.
+    - This runs `npm run backend:dev` (Node.js with `tsx watch`) and `npm run frontend:dev` (Vite dev server) concurrently.
     - Access the dashboard at `http://localhost:5173` (Vite default) or the configured port/path.
 
 ### Production Build
-1.  Install dependencies: `pnpm install`.
-2.  Build the project: `pnpm build`.
-    - This runs `pnpm backend:build` (TypeScript compilation to `dist/`) and `pnpm frontend:build` (Vite build to `frontend/dist/`).
-3.  Start the production server: `pnpm start`.
+1.  Install dependencies: `npm install`.
+2.  Build the project: `npm run build`.
+    - This runs `npm run backend:build` (TypeScript compilation to `dist/`) and `npm run frontend:build` (Vite build to `frontend/dist/`).
+3.  Start the production server: `npm start`.
     - This runs `node dist/index.js`.
 
 ### Docker Deployment

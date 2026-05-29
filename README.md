@@ -83,18 +83,18 @@ Key variables (edit in compose if needed):
 
 ### Method 3: Local development
 
-Requirements: Node.js 18+/20+ and pnpm. PostgreSQL is no longer required for local persistence.
+Requirements: Node.js 18+/20+ and npm. PostgreSQL is no longer required for local persistence.
 
 ```bash
 git clone https://github.com/huangjunsen0406/xiaozhi-mcphub.git
 cd xiaozhi-mcphub
-pnpm install
+npm install
 
 # Optional: choose where JSON data is stored
 export JSON_DB_PATH="./data/db.json"
 
 # Start both backend (:3000) and frontend (Vite :5173)
-pnpm dev
+npm run dev
 ```
 
 Access the frontend dev server at `http://localhost:5173` (the frontend proxies to backend `:3000`).

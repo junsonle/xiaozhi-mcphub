@@ -13,18 +13,13 @@ RUN apt-get update && apt-get install -y curl gnupg git \
   && apt-get install -y nodejs \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g pnpm
-
 ARG REQUEST_TIMEOUT=60000
 ENV REQUEST_TIMEOUT=$REQUEST_TIMEOUT
 
 ARG BASE_PATH=""
 ENV BASE_PATH=$BASE_PATH
 
-ENV PNPM_HOME=/usr/local/share/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-RUN mkdir -p $PNPM_HOME && \
-  pnpm add -g @amap/amap-maps-mcp-server @playwright/mcp@latest tavily-mcp@latest @modelcontextprotocol/server-github @modelcontextprotocol/server-slack
+RUN npm install -g @amap/amap-maps-mcp-server @playwright/mcp@latest tavily-mcp@latest @modelcontextprotocol/server-github @modelcontextprotocol/server-slack
 
 ARG INSTALL_EXT=true
 RUN if [ "$INSTALL_EXT" = "true" ]; then \
@@ -40,15 +35,15 @@ RUN uv tool install mcp-server-fetch
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install
+COPY package.json ./
+RUN npm install
 
 COPY . .
 
 # Download the latest servers.json from mcpm.sh and replace the existing file
 RUN curl -s -f --connect-timeout 10 https://mcpm.sh/api/servers.json -o servers.json || echo "Failed to download servers.json, using bundled version"
 
-RUN pnpm frontend:build && pnpm build
+RUN npm run frontend:build && npm run build
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
@@ -56,4 +51,4 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 EXPOSE 3000
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["pnpm", "start"]
+CMD ["npm", "start"]

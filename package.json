@@ -17,7 +17,7 @@
     "NOTICE"
   ],
   "scripts": {
-    "build": "pnpm backend:build && pnpm frontend:build",
+    "build": "npm run backend:build && npm run frontend:build",
     "backend:build": "tsc",
     "start": "node dist/index.js",
     "backend:dev": "tsx watch src/index.ts",
@@ -132,12 +132,5 @@
   },
   "engines": {
     "node": "^18.0.0 || >=20.0.0"
-  },
-  "packageManager": "pnpm@10.12.4+sha256.cadfd9e6c9fcc2cb76fe7c0779a5250b632898aea5f53d833a73690c77a778d9",
-  "pnpm": {
-    "overrides": {
-      "brace-expansion@1.1.11": "1.1.12",
-      "brace-expansion@2.0.1": "2.0.2"
-    }
   }
 }
