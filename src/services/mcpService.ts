@@ -483,12 +483,7 @@ const callToolWithReconnect = async (
               name: `mcp-client-${serverInfo.name}`,
               version: '1.0.0',
             },
-            {
-              capabilities: {
-                resources: {},
-                tools: {},
-              },
-            },
+            {},
           );
 
           // Reconnect with new transport
@@ -671,12 +666,7 @@ export const initializeClientsFromSettings = async (
         name: `mcp-client-${name}`,
         version: '1.0.0',
       },
-      {
-        capabilities: {
-          resources: {},
-          tools: {},
-        },
-      },
+      {},
     );
 
     const initRequestOptions = isInit
