@@ -1,5 +1,5 @@
-import { DataSource } from 'typeorm';
-import { User, McpServer } from '../entities/index.js';
+import { getUserRepository } from '../repositories/UserRepository.js';
+import { getMcpServerRepository } from '../repositories/McpServerRepository.js';
 
 /**
  * Default MCP servers configuration
@@ -10,21 +10,21 @@ const defaultMcpServers = [
     command: 'npx',
     args: ['-y', '@amap/amap-maps-mcp-server'],
     env: {
-      AMAP_MAPS_API_KEY: 'your-api-key'
+      AMAP_MAPS_API_KEY: 'your-api-key',
     },
-    enabled: true
+    enabled: true,
   },
   {
     name: 'playwright',
     command: 'npx',
     args: ['@playwright/mcp@latest', '--headless'],
-    enabled: true
+    enabled: true,
   },
   {
     name: 'fetch',
     command: 'uvx',
     args: ['mcp-server-fetch'],
-    enabled: true
+    enabled: true,
   },
   {
     name: 'slack',
@@ -32,10 +32,10 @@ const defaultMcpServers = [
     args: ['-y', '@modelcontextprotocol/server-slack'],
     env: {
       SLACK_BOT_TOKEN: 'your-bot-token',
-      SLACK_TEAM_ID: 'your-team-id'
+      SLACK_TEAM_ID: 'your-team-id',
     },
-    enabled: true
-  }
+    enabled: true,
+  },
 ];
 
 /**
@@ -44,50 +44,46 @@ const defaultMcpServers = [
 const defaultUsers = [
   {
     username: 'admin',
-    password: '$2b$10$P/FoYsdJZROBNgkxeyQjlOcEB2x369M/rhkWU0du9fedzj1YoOSKy', // Pre-hashed password for 'admin123'
-    isAdmin: true
-  }
+    password: '$2b$10$P/FoYsdJZROBNgkxeyQjlOcEB2x369M/rhkWU0du9fedzj1YoOSKy',
+    isAdmin: true,
+  },
 ];
 
 /**
- * Initialize default data in the database
+ * Initialize default data in the JSON storage
  */
-export async function initializeDefaultData(dataSource: DataSource): Promise<void> {
+export async function initializeDefaultData(): Promise<void> {
   try {
-    console.log('Initializing default database data...');
+    console.log('Initializing default JSON data...');
 
-    const userRepository = dataSource.getRepository(User);
-    const mcpServerRepository = dataSource.getRepository(McpServer);
+    const userRepository = getUserRepository();
+    const mcpServerRepository = getMcpServerRepository();
 
-    // Check if data already exists
     const existingUsers = await userRepository.count();
     const existingServers = await mcpServerRepository.count();
 
-    // Initialize users if none exist
     if (existingUsers === 0) {
       console.log('Creating default users...');
       for (const userData of defaultUsers) {
-        const user = userRepository.create(userData);
-        await userRepository.save(user);
+        await userRepository.create(userData as any);
       }
       console.log(`Created ${defaultUsers.length} default users`);
     } else {
       console.log(`Users already exist (${existingUsers} found), skipping user initialization`);
     }
 
-    // Initialize MCP servers if none exist
     if (existingServers === 0) {
       console.log('Creating default MCP servers...');
       for (const serverData of defaultMcpServers) {
-        const server = mcpServerRepository.create(serverData);
-        await mcpServerRepository.save(server);
+        await mcpServerRepository.save(serverData as any);
       }
       console.log(`Created ${defaultMcpServers.length} default MCP servers`);
     } else {
-      console.log(`MCP servers already exist (${existingServers} found), skipping server initialization`);
+      console.log(
+        `MCP servers already exist (${existingServers} found), skipping server initialization`,
+      );
     }
 
-    // Initialize system configuration
     const { getSystemConfigService } = await import('../../services/systemConfigService.js');
     const systemConfigService = getSystemConfigService();
     await systemConfigService.initialize();
@@ -103,10 +99,10 @@ export async function initializeDefaultData(dataSource: DataSource): Promise<voi
 /**
  * Check if default data needs to be initialized
  */
-export async function needsInitialization(dataSource: DataSource): Promise<boolean> {
+export async function needsInitialization(): Promise<boolean> {
   try {
-    const userRepository = dataSource.getRepository(User);
-    const mcpServerRepository = dataSource.getRepository(McpServer);
+    const userRepository = getUserRepository();
+    const mcpServerRepository = getMcpServerRepository();
 
     const userCount = await userRepository.count();
     const serverCount = await mcpServerRepository.count();
@@ -114,19 +110,18 @@ export async function needsInitialization(dataSource: DataSource): Promise<boole
     return userCount === 0 || serverCount === 0;
   } catch (error) {
     console.error('Error checking initialization status:', error);
-    // If we can't check, assume we need initialization
     return true;
   }
 }
 
 /**
- * Get default admin user credentials (for documentation purposes)
+ * Get default admin user credentials
  */
 export function getDefaultAdminCredentials() {
   return {
     username: 'admin',
-    password: 'admin123', // The actual password that corresponds to the hash
-    note: 'This is the default admin password. Please change it after first login.'
+    password: 'admin123',
+    note: 'This is the default admin password. Please change it after first login.',
   };
 }
 

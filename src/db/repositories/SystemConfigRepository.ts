@@ -1,132 +1,75 @@
 import { SystemConfig } from '../entities/index.js';
-import BaseRepository from './BaseRepository.js';
+import jsonStorage from '../jsonStorage.js';
 
-/**
- * Repository for SystemConfig entity
- * Handles system-wide configuration stored in database
- */
-export class SystemConfigRepository extends BaseRepository<SystemConfig> {
-  constructor() {
-    super(SystemConfig);
-  }
-
-  /**
-   * Get the system configuration (should only have one record)
-   */
+export class SystemConfigRepository {
   async getConfig(): Promise<SystemConfig | null> {
-    return await this.repository.findOne({ where: { id: 'default' } });
+    return jsonStorage.data().systemConfig;
   }
 
-  /**
-   * Create or update system configuration
-   */
   async saveConfig(config: Partial<SystemConfig>): Promise<SystemConfig> {
-    // Ensure we always use 'default' as the ID
-    const configToSave = { ...config, id: 'default' };
-    
-    // Check if config exists
-    const existingConfig = await this.getConfig();
-    
-    if (existingConfig) {
-      // Update existing config
-      await this.repository.update('default', configToSave);
-      const updated = await this.getConfig();
-      return updated!;
-    } else {
-      // Create new config
-      const newConfig = this.repository.create(configToSave);
-      return await this.repository.save(newConfig);
-    }
+    const db = jsonStorage.data();
+    const existing = db.systemConfig || ({} as SystemConfig);
+    const isNew = !db.systemConfig;
+
+    db.systemConfig = {
+      ...existing,
+      ...config,
+      id: 'default',
+      createdAt: existing.createdAt || new Date(),
+      updatedAt: new Date(),
+    } as SystemConfig;
+
+    jsonStorage.timestamps(db.systemConfig, isNew);
+    jsonStorage.persist();
+    return db.systemConfig;
   }
 
-  /**
-   * Update routing configuration only
-   */
   async updateRouting(routing: Partial<SystemConfig['routing']>): Promise<SystemConfig | null> {
     const config = await this.getConfig();
-    if (!config) {
-      // Create new config with routing
-      return await this.saveConfig({ routing });
-    }
-    
-    // Merge with existing routing
-    const updatedRouting = { ...config.routing, ...routing };
-    return await this.saveConfig({ routing: updatedRouting });
+    return await this.saveConfig({ routing: { ...(config?.routing || {}), ...routing } });
   }
 
-  /**
-   * Update install configuration only
-   */
   async updateInstall(install: Partial<SystemConfig['install']>): Promise<SystemConfig | null> {
     const config = await this.getConfig();
-    if (!config) {
-      return await this.saveConfig({ install });
-    }
-    
-    const updatedInstall = { ...config.install, ...install };
-    return await this.saveConfig({ install: updatedInstall });
+    return await this.saveConfig({ install: { ...(config?.install || {}), ...install } });
   }
 
-  /**
-   * Update smart routing configuration only
-   */
-  async updateSmartRouting(smartRouting: Partial<SystemConfig['smartRouting']>): Promise<SystemConfig | null> {
+  async updateSmartRouting(
+    smartRouting: Partial<SystemConfig['smartRouting']>,
+  ): Promise<SystemConfig | null> {
     const config = await this.getConfig();
-    if (!config) {
-      return await this.saveConfig({ smartRouting });
-    }
-    
-    const updatedSmartRouting = { ...config.smartRouting, ...smartRouting };
-    return await this.saveConfig({ smartRouting: updatedSmartRouting });
+    return await this.saveConfig({
+      smartRouting: { ...(config?.smartRouting || {}), ...smartRouting },
+    });
   }
 
-  /**
-   * Update MCP router configuration only
-   */
   async updateMcpRouter(mcpRouter: Partial<SystemConfig['mcpRouter']>): Promise<SystemConfig | null> {
     const config = await this.getConfig();
-    if (!config) {
-      return await this.saveConfig({ mcpRouter });
-    }
-    
-    const updatedMcpRouter = { ...config.mcpRouter, ...mcpRouter };
-    return await this.saveConfig({ mcpRouter: updatedMcpRouter });
+    return await this.saveConfig({ mcpRouter: { ...(config?.mcpRouter || {}), ...mcpRouter } });
   }
 
-  /**
-   * Update modelscope configuration only
-   */
   async updateModelScope(modelscope: Partial<SystemConfig['modelscope']>): Promise<SystemConfig | null> {
     const config = await this.getConfig();
-    if (!config) {
-      return await this.saveConfig({ modelscope });
-    }
-    const updated = { ...config.modelscope, ...modelscope };
-    return await this.saveConfig({ modelscope: updated });
+    return await this.saveConfig({ modelscope: { ...(config?.modelscope || {}), ...modelscope } });
   }
 
-  /**
-   * Initialize default configuration if none exists
-   */
   async initializeDefaults(): Promise<SystemConfig> {
     const existing = await this.getConfig();
-    if (existing) {
-      return existing;
-    }
+    if (existing) return existing;
 
-    const defaultConfig: Partial<SystemConfig> = {
+    return await this.saveConfig({
       id: 'default',
       routing: {
         enableGlobalRoute: true,
         enableGroupNameRoute: true,
         enableBearerAuth: false,
         bearerAuthKey: '',
-        skipAuth: false
+        skipAuth: true,
       },
       install: {
         pythonIndexUrl: '',
         npmRegistry: '',
-        baseUrl: 'http://localhost:3000'
+        baseUrl: 'http://localhost:3000',
       },
       smartRouting: {
         enabled: false,
@@ -136,24 +79,21 @@ export class SystemConfigRepository extends BaseRepository<SystemConfig> {
         model: '',
         openaiApiBaseUrl: '',
         openaiApiKey: '',
-        openaiApiEmbeddingModel: ''
+        openaiApiEmbeddingModel: '',
       },
       mcpRouter: {
         apiKey: '',
         referer: 'https://www.mcphubx.com',
         title: 'MCPHub',
-        baseUrl: 'https://api.mcprouter.to/v1'
+        baseUrl: 'https://api.mcprouter.to/v1',
       },
       modelscope: {
-        apiKey: ''
-      }
-    };
-
-    return await this.saveConfig(defaultConfig);
+        apiKey: '',
+      },
+    });
   }
 }
 
-// Singleton instance
 let systemConfigRepositoryInstance: SystemConfigRepository | null = null;
 
 export function getSystemConfigRepository(): SystemConfigRepository {

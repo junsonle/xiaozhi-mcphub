@@ -31,23 +31,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Load user if token exists
   useEffect(() => {
     const loadUser = async () => {
-      // First check if authentication should be skipped
-      const { skipAuth, permissions } = await getPublicConfig();
-
-      if (skipAuth) {
-        // If authentication is disabled, set user as authenticated with a dummy user
-        setAuth({
-          isAuthenticated: true,
-          loading: false,
-          user: {
-            username: 'guest',
-            isAdmin: true,
-            permissions,
-          },
-          error: null,
-        });
-        return;
-      }
+      // Authentication is disabled for this deployment: always enter as guest admin.
+      setAuth({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          username: 'guest',
+          isAdmin: true,
+          permissions: ['x'],
+        },
+        error: null,
+      });
+      return;
 
       // Normal authentication flow
       const token = authService.getToken();

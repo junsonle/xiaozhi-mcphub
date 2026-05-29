@@ -49,7 +49,7 @@ const levelColors = {
 };
 
 // Maximum number of logs to keep in memory
-const MAX_LOGS = 1000;
+const MAX_LOGS = 200;
 
 class LogService {
   private logs: LogEntry[] = [];
@@ -91,37 +91,24 @@ class LogService {
     const originalConsoleWarn = console.warn;
     const originalConsoleDebug = console.debug;
 
-    // Helper method to handle common logic for all console methods
-    const handleConsoleMethod = (
-      type: 'info' | 'error' | 'warn' | 'debug',
-      originalMethod: (...args: any[]) => void,
-      ...args: any[]
-    ) => {
+    // Only errors are emitted and retained to minimize RAM and console noise.
+    const handleErrorMethod = (...args: any[]) => {
       const firstArg = args.length > 0 ? this.formatArgument(args[0]) : { text: '' };
       const remainingArgs = args.slice(1).map((arg) => this.formatArgument(arg).text);
       const combinedMessage = [firstArg.text, ...remainingArgs].join(' ');
       const source = firstArg.source || 'main';
       const processId = firstArg.processId;
-      this.addLog(type, source, combinedMessage, processId);
-      originalMethod.apply(console, [
-        this.formatLogMessage(type, source, combinedMessage, processId),
+      this.addLog('error', source, combinedMessage, processId);
+      originalConsoleError.apply(console, [
+        this.formatLogMessage('error', source, combinedMessage, processId),
       ]);
     };
 
-    console.log = (...args: any[]) => {
-      handleConsoleMethod('info', originalConsoleLog, ...args);
-    };
-
+    console.log = (..._args: any[]) => {};
+    console.warn = (..._args: any[]) => {};
+    console.debug = (..._args: any[]) => {};
     console.error = (...args: any[]) => {
-      handleConsoleMethod('error', originalConsoleError, ...args);
-    };
-
-    console.warn = (...args: any[]) => {
-      handleConsoleMethod('warn', originalConsoleWarn, ...args);
-    };
-
-    console.debug = (...args: any[]) => {
-      handleConsoleMethod('debug', originalConsoleDebug, ...args);
+      handleErrorMethod(...args);
     };
   }
 
@@ -134,7 +121,8 @@ class LogService {
     // Handle objects
     if (typeof arg === 'object') {
       try {
-        return { text: JSON.stringify(arg, null, 2) };
+        const serialized = JSON.stringify(arg);
+        return { text: serialized.length > 2000 ? `${serialized.slice(0, 2000)}... [truncated]` : serialized };
       } catch (e) {
         return { text: String(arg) };
       }

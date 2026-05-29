@@ -42,6 +42,16 @@ const ServerForm = ({ onSubmit, onCancel, initialData = null, modalTitle, formEr
     type: getInitialServerType(), // Initialize the type field
     env: [],
     headers: [],
+    auth: {
+      type: initialData?.config?.auth?.type || 'none',
+      token: initialData?.config?.auth?.token || '',
+      username: initialData?.config?.auth?.username || '',
+      password: initialData?.config?.auth?.password || '',
+      tokenFile: initialData?.config?.auth?.tokenFile || '',
+      clientId: initialData?.config?.auth?.clientId || '',
+      clientSecret: initialData?.config?.auth?.clientSecret || '',
+      scopes: initialData?.config?.auth?.scopes || 'openid profile email offline_access',
+    },
     options: {
       timeout: (initialData && initialData.config && initialData.config.options && initialData.config.options.timeout) || 60000,
       resetTimeoutOnProgress: (initialData && initialData.config && initialData.config.options && initialData.config.options.resetTimeoutOnProgress) || false,
@@ -182,6 +192,45 @@ const ServerForm = ({ onSubmit, onCancel, initialData = null, modalTitle, formEr
         options.maxTotalTimeout = formData.options.maxTotalTimeout
       }
 
+      const remoteAuth =
+        serverType === 'sse' || serverType === 'streamable-http'
+          ? (() => {
+              const authType = formData.auth?.type || 'none'
+              if (authType === 'bearer' && formData.auth?.token?.trim()) {
+                return {
+                  auth: {
+                    type: 'bearer' as const,
+                    token: formData.auth.token.trim(),
+                  },
+                }
+              }
+
+              if (authType === 'basic' && formData.auth?.username?.trim()) {
+                return {
+                  auth: {
+                    type: 'basic' as const,
+                    username: formData.auth.username.trim(),
+                    password: formData.auth.password || '',
+                  },
+                }
+              }
+
+              if (authType === 'oauth') {
+                return {
+                  auth: {
+                    type: 'oauth' as const,
+                    ...(formData.auth?.tokenFile?.trim() ? { tokenFile: formData.auth.tokenFile.trim() } : {}),
+                    ...(formData.auth?.clientId?.trim() ? { clientId: formData.auth.clientId.trim() } : {}),
+                    ...(formData.auth?.clientSecret?.trim() ? { clientSecret: formData.auth.clientSecret.trim() } : {}),
+                    ...(formData.auth?.scopes?.trim() ? { scopes: formData.auth.scopes.trim() } : {}),
+                  },
+                }
+              }
+
+              return {}
+            })()
+          : {}
+
       const payload = {
         name: formData.name,
         config: {
@@ -242,7 +291,8 @@ const ServerForm = ({ onSubmit, onCancel, initialData = null, modalTitle, formEr
             : serverType === 'sse' || serverType === 'streamable-http'
               ? {
                 url: formData.url,
-                ...(Object.keys(headers).length > 0 ? { headers } : {})
+                ...(Object.keys(headers).length > 0 ? { headers } : {}),
+                ...remoteAuth
               }
               : {
                 command: formData.command,
@@ -675,6 +725,133 @@ const ServerForm = ({ onSubmit, onCancel, initialData = null, modalTitle, formEr
                 placeholder={serverType === 'streamable-http' ? "e.g.: http://localhost:3000/mcp" : "e.g.: http://localhost:3000/sse"}
                 required={serverType === 'sse' || serverType === 'streamable-http'}
               />
+            </div>
+
+            <div className="mb-4 p-4 border border-gray-200 rounded bg-gray-50">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Remote HTTP Authentication</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-gray-600 mb-1">Mode</label>
+                  <select
+                    value={formData.auth?.type || 'none'}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      auth: {
+                        ...prev.auth,
+                        type: e.target.value as 'none' | 'bearer' | 'basic' | 'oauth'
+                      }
+                    }))}
+                    className="w-full border rounded px-2 py-1 text-sm focus:outline-none form-input"
+                  >
+                    <option value="none">Plain HTTP / No Auth</option>
+                    <option value="oauth">Interactive OAuth / Horizon</option>
+                    <option value="bearer">Static Bearer Token</option>
+                    <option value="basic">Basic Auth</option>
+                  </select>
+                </div>
+
+                {formData.auth?.type === 'bearer' && (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-gray-600 mb-1">Bearer Token</label>
+                    <input
+                      type="password"
+                      value={formData.auth?.token || ''}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        auth: {
+                          ...prev.auth,
+                          type: 'bearer',
+                          token: e.target.value
+                        }
+                      }))}
+                      className="w-full border rounded px-2 py-1 text-sm focus:outline-none form-input"
+                      placeholder="Paste MCP bearer token"
+                    />
+                  </div>
+                )}
+
+                {formData.auth?.type === 'basic' && (
+                  <>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Username</label>
+                      <input
+                        type="text"
+                        value={formData.auth?.username || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          auth: {
+                            ...prev.auth,
+                            type: 'basic',
+                            username: e.target.value
+                          }
+                        }))}
+                        className="w-full border rounded px-2 py-1 text-sm focus:outline-none form-input"
+                        placeholder="Username"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Password</label>
+                      <input
+                        type="password"
+                        value={formData.auth?.password || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          auth: {
+                            ...prev.auth,
+                            type: 'basic',
+                            password: e.target.value
+                          }
+                        }))}
+                        className="w-full border rounded px-2 py-1 text-sm focus:outline-none form-input"
+                        placeholder="Password"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {formData.auth?.type === 'oauth' && (
+                  <>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-600 mb-1">OAuth Scopes</label>
+                      <input
+                        type="text"
+                        value={formData.auth?.scopes || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          auth: {
+                            ...prev.auth,
+                            type: 'oauth',
+                            scopes: e.target.value
+                          }
+                        }))}
+                        className="w-full border rounded px-2 py-1 text-sm focus:outline-none form-input"
+                        placeholder="openid profile email offline_access"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-600 mb-1">Token File (optional)</label>
+                      <input
+                        type="text"
+                        value={formData.auth?.tokenFile || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          auth: {
+                            ...prev.auth,
+                            type: 'oauth',
+                            tokenFile: e.target.value
+                          }
+                        }))}
+                        className="w-full border rounded px-2 py-1 text-sm focus:outline-none form-input"
+                        placeholder="data/oauth-tokens/sinric.json"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="md:col-span-2 text-xs text-gray-500">
+                  Use <code>Plain HTTP / No Auth</code> for normal public MCP endpoints. Use <code>Interactive OAuth / Horizon</code> for FastMCP/Horizon endpoints like Sinric that open a browser login page. Static bearer remains available only when you already have a valid token.
+                </div>
+              </div>
             </div>
 
             <div className="mb-4">

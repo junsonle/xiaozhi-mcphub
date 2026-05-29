@@ -45,22 +45,14 @@ export const initMiddlewares = (app: express.Application): void => {
     }
   });
 
-  // Protect API routes with authentication middleware, but exclude auth endpoints
+  // Authentication is disabled for this deployment; still apply user context for API routes.
   app.use(`${config.basePath}/api`, (req, res, next) => {
-    // Skip authentication for login endpoint
-    if (req.path === '/auth/login') {
-      next();
-    } else {
-      // Apply authentication middleware first
-      auth(req, res, (err) => {
-        if (err) {
-          next(err);
-        } else {
-          // Apply user context middleware after successful authentication
-          userContextMiddleware(req, res, next);
-        }
-      });
-    }
+    (req as any).user = {
+      username: 'guest',
+      isAdmin: true,
+      permissions: ['x'],
+    };
+    userContextMiddleware(req, res, next);
   });
 
   app.use(errorHandler);

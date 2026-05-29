@@ -21,6 +21,7 @@ import { getDataService } from './services.js';
 import { getSystemConfigService } from './systemConfigService.js';
 import { getMcpServerService } from './mcpServerService.js';
 import { isDatabaseConnected } from '../db/connection.js';
+import { createRemoteOAuthProvider } from './remoteOAuthService.js';
 
 const servers: { [sessionId: string]: Server } = {};
 
@@ -278,16 +279,49 @@ export const cleanupAllServers = (): void => {
   });
 };
 
+// Helper function to build dedicated remote HTTP auth headers
+const buildRemoteAuthHeaders = (conf: ServerConfig): Record<string, string> => {
+  if (!conf.auth || conf.auth.type === 'none' || conf.auth.type === 'oauth') {
+    return {};
+  }
+
+  if (conf.auth.type === 'bearer' && conf.auth.token?.trim()) {
+    return {
+      Authorization: `Bearer ${conf.auth.token.trim()}`,
+    };
+  }
+
+  if (conf.auth.type === 'basic' && conf.auth.username && conf.auth.password !== undefined) {
+    const credentials = Buffer.from(`${conf.auth.username}:${conf.auth.password}`).toString('base64');
+    return {
+      Authorization: `Basic ${credentials}`,
+    };
+  }
+
+  return {};
+};
+
 // Helper function to create transport based on server configuration
 const createTransportFromConfig = async (name: string, conf: ServerConfig): Promise<any> => {
   let transport;
 
   if (conf.type === 'streamable-http') {
     const options: any = {};
-    if (conf.headers && Object.keys(conf.headers).length > 0) {
+    const remoteAuthHeaders = buildRemoteAuthHeaders(conf);
+    const mergedHeaders = {
+      ...(conf.headers || {}),
+      ...remoteAuthHeaders,
+    };
+
+    if (Object.keys(mergedHeaders).length > 0) {
       options.requestInit = {
-        headers: conf.headers,
+        headers: mergedHeaders,
       };
+    }
+
+    const authProvider = createRemoteOAuthProvider(name, conf);
+    if (authProvider) {
+      options.authProvider = authProvider;
     }
     // 自动为 ModelScope 域名附加 Bearer token（若数据库配置了 modelscope.apiKey）
     try {
@@ -308,12 +342,18 @@ const createTransportFromConfig = async (name: string, conf: ServerConfig): Prom
   } else if (conf.url) {
     // SSE transport
     const options: any = {};
-    if (conf.headers && Object.keys(conf.headers).length > 0) {
+    const remoteAuthHeaders = buildRemoteAuthHeaders(conf);
+    const mergedHeaders = {
+      ...(conf.headers || {}),
+      ...remoteAuthHeaders,
+    };
+
+    if (Object.keys(mergedHeaders).length > 0) {
       options.eventSourceInit = {
-        headers: conf.headers,
+        headers: mergedHeaders,
       };
       options.requestInit = {
-        headers: conf.headers,
+        headers: mergedHeaders,
       };
     }
     // 自动为 ModelScope SSE 附加 Bearer token（若数据库配置了 modelscope.apiKey），且未手动提供 Authorization

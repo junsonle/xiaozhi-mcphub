@@ -70,7 +70,6 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const fetchServers = async () => {
       try {
-        console.log('[ServerContext] Fetching servers from API...');
         const data = await apiGet('/servers');
         
         // Update last fetch time
@@ -116,11 +115,9 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Watch for authentication status changes
   useEffect(() => {
     if (auth.isAuthenticated) {
-      console.log('[ServerContext] User authenticated, triggering refresh');
       // When user logs in, trigger a refresh to load servers
       setRefreshKey((prevKey) => prevKey + 1);
     } else {
-      console.log('[ServerContext] User not authenticated, clearing data and stopping polling');
       // When user logs out, clear data and stop polling
       clearTimer();
       setServers([]);
@@ -132,7 +129,6 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     // If not authenticated, don't poll
     if (!auth.isAuthenticated) {
-      console.log('[ServerContext] User not authenticated, skipping polling setup');
       return;
     }
 
@@ -145,7 +141,6 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Initialization phase request function
     const fetchInitialData = async () => {
       try {
-        console.log('[ServerContext] Initial fetch - attempt', attemptsRef.current + 1);
         const data = await apiGet('/servers');
         
         // Update last fetch time
@@ -191,7 +186,6 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         // If maximum attempt count is exceeded, give up initialization and switch to normal polling
         if (attemptsRef.current >= CONFIG.startup.maxAttempts) {
-          console.log('Maximum startup attempts reached, switching to normal polling');
           setIsInitialLoading(false);
           // Clear initialization polling
           clearTimer();
@@ -213,7 +207,6 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // Set polling interval for initialization phase
       intervalRef.current = setInterval(fetchInitialData, CONFIG.startup.pollingInterval);
-      console.log(`Started initial polling with interval: ${CONFIG.startup.pollingInterval}ms`);
     } else {
       // Initialization completed, start normal polling
       startNormalPolling();
@@ -246,15 +239,9 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const now = Date.now();
     const timeSinceLastFetch = now - lastFetchTimeRef.current;
     
-    // Log who is calling this
-    console.log('[ServerContext] refreshIfNeeded called, time since last fetch:', timeSinceLastFetch, 'ms');
-    
     // Only refresh if enough time has passed since last fetch
     if (timeSinceLastFetch >= MIN_REFRESH_INTERVAL) {
-      console.log('[ServerContext] Triggering refresh (exceeded MIN_REFRESH_INTERVAL:', MIN_REFRESH_INTERVAL, 'ms)');
       triggerRefresh();
-    } else {
-      console.log('[ServerContext] Skipping refresh (MIN_REFRESH_INTERVAL:', MIN_REFRESH_INTERVAL, 'ms, time since last:', timeSinceLastFetch, 'ms)');
     }
   }, [triggerRefresh]);
 

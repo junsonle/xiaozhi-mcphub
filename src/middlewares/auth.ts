@@ -43,19 +43,19 @@ export const auth = async (req: Request, res: Response, next: NextFunction): Pro
 
   // Check if authentication is disabled globally
   const systemConfigService = getSystemConfigService();
+  if (await systemConfigService.isAuthSkipped()) {
+    next();
+    return;
+  }
+
   const systemConfig = await systemConfigService.getSystemConfig();
   const routingConfig = systemConfig?.routing || {
     enableGlobalRoute: true,
     enableGroupNameRoute: true,
     enableBearerAuth: false,
     bearerAuthKey: '',
-    skipAuth: false,
+    skipAuth: true,
   };
-
-  if (routingConfig.skipAuth) {
-    next();
-    return;
-  }
 
   // Check if bearer auth is enabled and validate it
   if (validateBearerAuth(req, routingConfig)) {

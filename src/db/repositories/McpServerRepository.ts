@@ -1,111 +1,100 @@
 import { BaseRepository } from './BaseRepository.js';
 import { McpServer } from '../entities/index.js';
 
-/**
- * Repository for managing MCP servers in the database
- */
 export class McpServerRepository extends BaseRepository<McpServer> {
   constructor() {
-    super(McpServer);
+    super('mcpServers');
   }
 
-  /**
-   * Find server by name
-   * @param name Server name
-   */
   async findByName(name: string): Promise<McpServer | null> {
-    return this.repository.findOneBy({ name });
+    return this.getCollection().find((server) => server.name === name) || null;
   }
 
-  /**
-   * Find servers by owner
-   * @param owner Owner username
-   */
   async findByOwner(owner: string): Promise<McpServer[]> {
-    return this.repository.findBy({ owner });
+    return this.getCollection().filter((server) => server.owner === owner);
   }
 
-  /**
-   * Find enabled servers
-   */
   async findEnabled(): Promise<McpServer[]> {
-    return this.repository.findBy({ enabled: true });
+    return this.getCollection().filter((server) => server.enabled === true);
   }
 
-  /**
-   * Update server enabled status
-   * @param name Server name
-   * @param enabled Enabled status
-   */
   async updateEnabledStatus(name: string, enabled: boolean): Promise<boolean> {
-    const result = await this.repository.update({ name }, { enabled });
-    return result.affected !== null && result.affected !== undefined && result.affected > 0;
+    return this.updateConfig(name, { enabled });
   }
 
-  /**
-   * Delete server by name
-   * @param name Server name
-   */
   async deleteByName(name: string): Promise<boolean> {
-    const result = await this.repository.delete({ name });
-    return result.affected !== null && result.affected !== undefined && result.affected > 0;
+    const collection = this.getCollection();
+    const index = collection.findIndex((server) => server.name === name);
+    if (index === -1) return false;
+
+    collection.splice(index, 1);
+    this.persist();
+    return true;
   }
 
-  /**
-   * Check if server exists
-   * @param name Server name
-   */
   async exists(name: string): Promise<boolean> {
-    const count = await this.repository.countBy({ name });
-    return count > 0;
+    return this.getCollection().some((server) => server.name === name);
   }
 
-  /**
-   * Update server configuration
-   * @param name Server name
-   * @param config Partial server configuration
-   */
   async updateConfig(name: string, config: Partial<McpServer>): Promise<boolean> {
-    const result = await this.repository.update({ name }, config);
-    return result.affected !== null && result.affected !== undefined && result.affected > 0;
+    const collection = this.getCollection();
+    const index = collection.findIndex((server) => server.name === name);
+    if (index === -1) return false;
+
+    collection[index] = {
+      ...collection[index],
+      ...config,
+      name,
+      updatedAt: new Date(),
+    };
+    this.persist();
+    return true;
   }
 
-  /**
-   * Get all server names
-   */
   async getAllServerNames(): Promise<string[]> {
-    const servers = await this.repository.find({ select: ['name'] });
-    return servers.map(server => server.name);
+    return this.getCollection().map((server) => server.name);
   }
 
-  /**
-   * Batch create or update servers
-   * @param servers Array of server configurations
-   */
+  async save(entity: Partial<McpServer>): Promise<McpServer> {
+    if (!entity.name) {
+      throw new Error('MCP server name is required');
+    }
+
+    const collection = this.getCollection();
+    const index = collection.findIndex((server) => server.name === entity.name);
+    const isNew = index === -1;
+    const nextEntity = {
+      ...(isNew ? {} : collection[index]),
+      ...entity,
+      enabled: entity.enabled !== false,
+      owner: entity.owner || 'admin',
+    } as McpServer;
+
+    if (isNew && !nextEntity.createdAt) nextEntity.createdAt = new Date();
+    nextEntity.updatedAt = new Date();
+
+    if (isNew) {
+      collection.push(nextEntity);
+    } else {
+      collection[index] = nextEntity;
+    }
+
+    this.persist();
+    return nextEntity;
+  }
+
   async upsertMany(servers: Partial<McpServer>[]): Promise<McpServer[]> {
     const results: McpServer[] = [];
-    
+
     for (const serverConfig of servers) {
       if (!serverConfig.name) continue;
-      
-      const existing = await this.findByName(serverConfig.name);
-      if (existing) {
-        // Update existing server
-        await this.repository.update({ name: serverConfig.name }, serverConfig);
-        const updated = await this.findByName(serverConfig.name);
-        if (updated) results.push(updated);
-      } else {
-        // Create new server
-        const saved = await this.repository.save(serverConfig);
-        results.push(saved);
-      }
+      results.push(await this.save(serverConfig));
     }
-    
+
     return results;
   }
 }
 
-// Singleton instance
 let mcpServerRepositoryInstance: McpServerRepository | null = null;
 
 export function getMcpServerRepository(): McpServerRepository {

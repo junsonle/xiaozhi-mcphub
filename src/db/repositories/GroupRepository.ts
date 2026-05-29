@@ -4,27 +4,15 @@ import { IGroupServerConfig } from '../../types/index.js';
 
 export class GroupRepository extends BaseRepository<Group> {
   constructor() {
-    super(Group);
+    super('groups');
   }
 
   async findByName(name: string): Promise<Group | null> {
-    return this.repository.findOneBy({ name });
+    return this.getCollection().find((group) => group.name === name) || null;
   }
 
   async findByIdOrName(key: string): Promise<Group | null> {
-    // 避免 Postgres 参数在 uuid 与 text 同时比较时的类型推断问题（42883）
-    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-    if (isUuid.test(key)) {
-      return await this.repository
-        .createQueryBuilder('group')
-        .where('group.id = :idKey', { idKey: key })
-        .getOne();
-    }
-
-    return await this.repository
-      .createQueryBuilder('group')
-      .where('group.name = :nameKey', { nameKey: key })
-      .getOne();
+    return this.getCollection().find((group) => group.id === key || group.name === key) || null;
   }
 
   async create(data: {
@@ -33,43 +21,47 @@ export class GroupRepository extends BaseRepository<Group> {
     servers?: IGroupServerConfig[];
     owner?: string;
   }): Promise<Group> {
-    const group = this.repository.create({
+    return await this.save({
       name: data.name,
       description: data.description,
       servers: data.servers || [],
       owner: data.owner || 'admin',
-    });
-    return await this.repository.save(group);
+    } as Partial<Group>);
   }
 
-  async update(id: string, data: {
-    name?: string;
-    description?: string;
-    servers?: IGroupServerConfig[];
-    owner?: string;
-  }): Promise<Group | null> {
-    await this.repository.update(id, data);
-    return await this.findById(id);
+  async update(
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      servers?: IGroupServerConfig[];
+      owner?: string;
+    },
+  ): Promise<Group | null> {
+    const collection = this.getCollection();
+    const index = collection.findIndex((group) => group.id === id);
+    if (index === -1) return null;
+
+    collection[index] = {
+      ...collection[index],
+      ...data,
+      updatedAt: new Date(),
+    };
+    this.persist();
+    return collection[index];
   }
 
   async existsByName(name: string, excludeId?: string): Promise<boolean> {
-    const query = this.repository.createQueryBuilder('group').where('group.name = :name', { name });
-    
-    if (excludeId) {
-      query.andWhere('group.id != :excludeId', { excludeId });
-    }
-    
-    const count = await query.getCount();
-    return count > 0;
+    return this.getCollection().some(
+      (group) => group.name === name && (!excludeId || group.id !== excludeId),
+    );
   }
 
   async updateServers(id: string, servers: IGroupServerConfig[]): Promise<Group | null> {
-    await this.repository.update(id, { servers });
-    return await this.findById(id);
+    return await this.update(id, { servers });
   }
 }
 
-// Singleton instance
 let groupRepositoryInstance: GroupRepository | null = null;
 
 export function getGroupRepository(): GroupRepository {

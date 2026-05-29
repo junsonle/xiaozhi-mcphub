@@ -210,6 +210,43 @@ export interface McpSettings {
 }
 
 // Configuration details for an individual server
+// Remote MCP HTTP authentication configuration
+export interface RemoteHttpAuthConfig {
+  type: 'none' | 'bearer' | 'basic' | 'oauth';
+  token?: string; // Raw bearer token without the "Bearer " prefix
+  username?: string; // Username for basic auth
+  password?: string; // Password for basic auth
+  tokenFile?: string; // Stored OAuth token file path for interactive/OAuth flows
+  clientId?: string; // Optional pre-registered OAuth client id
+  clientSecret?: string; // Optional pre-registered OAuth client secret
+  scopes?: string; // Optional OAuth scopes override
+}
+
+export interface RemoteOAuthClientInformation {
+  client_id: string;
+  client_secret?: string;
+  client_id_issued_at?: number;
+  client_secret_expires_at?: number;
+}
+
+export interface RemoteOAuthTokens {
+  access_token: string;
+  token_type: string;
+  refresh_token?: string;
+  expires_in?: number;
+  scope?: string;
+  id_token?: string;
+  obtained_at?: number;
+}
+
+export interface PendingOAuthAuth {
+  serverName: string;
+  authUrl: string;
+  redirectUrl: string;
+  tokenFile: string;
+}
+
+// Configuration details for an individual server
 export interface ServerConfig {
   type?: 'stdio' | 'sse' | 'streamable-http' | 'openapi'; // Type of server
   url?: string; // URL for SSE or streamable HTTP servers
@@ -217,6 +254,7 @@ export interface ServerConfig {
   args?: string[]; // Arguments for the command
   env?: Record<string, string>; // Environment variables
   headers?: Record<string, string>; // HTTP headers for SSE/streamable-http/openapi servers
+  auth?: RemoteHttpAuthConfig; // Optional auth dedicated to remote MCP HTTP transports
   enabled?: boolean; // Flag to enable/disable the server
   owner?: string; // Owner of the server, defaults to 'admin' user
   keepAliveInterval?: number; // Keep-alive ping interval in milliseconds (default: 60000ms for SSE servers)

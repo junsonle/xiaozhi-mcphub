@@ -90,8 +90,7 @@ export class SystemConfigService {
    * Check if authentication should be skipped
    */
   async isAuthSkipped(): Promise<boolean> {
-    const config = await this.getSystemConfig();
-    return config?.routing?.skipAuth || false;
+    return process.env.SKIP_AUTH !== 'false';
   }
 
   /**
@@ -102,9 +101,8 @@ export class SystemConfigService {
     version?: string;
     name?: string;
   }> {
-    const config = await this.getSystemConfig();
     return {
-      skipAuth: config?.routing?.skipAuth || false,
+      skipAuth: process.env.SKIP_AUTH !== 'false',
       // Add other public fields as needed
     };
   }

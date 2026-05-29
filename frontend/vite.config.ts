@@ -27,7 +27,16 @@ export default defineConfig({
     'import.meta.env.PACKAGE_VERSION': JSON.stringify(packageJson.version),
   },
   build: {
-    sourcemap: true, // Enable source maps for production build
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          i18n: ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+          ui: ['lucide-react'],
+        },
+      },
+    },
   },
   server: {
     proxy: {

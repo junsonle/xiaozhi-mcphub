@@ -34,10 +34,10 @@ export class AppServer {
 
   async initialize(): Promise<void> {
     try {
-      // Initialize database first
+      // Initialize JSON storage first
       const { initializeDatabase } = await import('./db/connection.js');
       await initializeDatabase();
-      console.log('Database initialized successfully');
+      console.log('JSON storage initialized successfully');
 
       // Initialize i18n before other components
       await initI18n();
@@ -47,18 +47,26 @@ export class AppServer {
       initRoutes(this.app);
       console.log('Server initialized successfully');
 
-      // Preload Xiaozhi configuration from database before initializing upstream servers
+      // Preload Xiaozhi configuration from JSON storage before initializing upstream servers
       try {
         const { xiaozhiClientService } = await import('./services/xiaozhiClientService.js');
         await xiaozhiClientService.reloadConfig();
-        console.log('Preloaded Xiaozhi configuration from database');
+        console.log('Preloaded Xiaozhi configuration from JSON storage');
       } catch (error) {
         console.warn('Failed to preload Xiaozhi configuration:', error);
       }
 
       initUpstreamServers()
-        .then(() => {
+        .then(async () => {
           console.log('MCP server initialized successfully');
+
+          try {
+            const { xiaozhiClientService } = await import('./services/xiaozhiClientService.js');
+            await xiaozhiClientService.notifyToolsChanged();
+            console.log('Notified Xiaozhi endpoints that tool list is ready');
+          } catch (error) {
+            console.warn('Failed to notify Xiaozhi endpoints after MCP initialization:', error);
+          }
 
           // Original routes (global and group-based)
           this.app.get(`${this.basePath}/sse/:group?`, sseUserContextMiddleware, (req, res) =>

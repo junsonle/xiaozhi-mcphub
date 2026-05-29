@@ -10,11 +10,14 @@ import {
   getServerConfig,
   toggleServer,
   toggleTool,
+  bulkToggleTools,
   updateToolDescription,
   togglePrompt,
   updatePromptDescription,
   getSystemConfig,
   updateSystemConfig,
+  getPendingOAuthAuths,
+  completeOAuthCallback,
 } from '../controllers/serverController.js';
 import {
   getGroups,
@@ -85,7 +88,11 @@ export const initRoutes = (app: express.Application): void => {
   // Health check endpoint (no auth required, accessible at /health)
   app.get('/health', healthCheck);
 
+  // OAuth callback must be reachable by the external browser redirect.
+  app.get(`${config.basePath}/api/oauth/callback/:serverName`, completeOAuthCallback);
+
   // API routes protected by auth middleware in middlewares/index.ts
+  router.get('/oauth/pending', getPendingOAuthAuths);
   router.get('/servers', getAllServers);
   router.get('/servers/:name', getServerConfig);
   router.get('/settings', getAllSettings);
@@ -93,6 +100,7 @@ export const initRoutes = (app: express.Application): void => {
   router.put('/servers/:name', updateServer);
   router.delete('/servers/:name', deleteServer);
   router.post('/servers/:name/toggle', toggleServer);
+  router.post('/servers/:serverName/tools/toggle', bulkToggleTools);
   router.post('/servers/:serverName/tools/:toolName/toggle', toggleTool);
   router.put('/servers/:serverName/tools/:toolName/description', updateToolDescription);
   router.post('/servers/:serverName/prompts/:promptName/toggle', togglePrompt);

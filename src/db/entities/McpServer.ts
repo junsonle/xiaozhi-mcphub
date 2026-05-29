@@ -29,6 +29,9 @@ export class McpServer {
   @Column({ type: 'simple-json', nullable: true })
   headers: Record<string, string>; // HTTP headers
 
+  @Column({ type: 'simple-json', nullable: true })
+  auth: any; // Remote MCP HTTP authentication
+
   @Column({ type: 'boolean', default: true })
   enabled: boolean;
 

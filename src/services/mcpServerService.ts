@@ -54,6 +54,7 @@ export class McpServerService {
       args: config.args,
       env: config.env,
       headers: config.headers,
+      auth: config.auth,
       enabled: config.enabled !== false, // Default to true
       owner: config.owner || 'admin',
       keepAliveInterval: config.keepAliveInterval,
@@ -82,6 +83,7 @@ export class McpServerService {
     if (config.args !== undefined) updateData.args = config.args;
     if (config.env !== undefined) updateData.env = config.env;
     if (config.headers !== undefined) updateData.headers = config.headers;
+    if (config.auth !== undefined) updateData.auth = config.auth;
     if (config.enabled !== undefined) updateData.enabled = config.enabled;
     if (config.owner !== undefined) updateData.owner = config.owner;
     if (config.keepAliveInterval !== undefined) updateData.keepAliveInterval = config.keepAliveInterval;
@@ -142,6 +144,7 @@ export class McpServerService {
       args: server.args,
       env: server.env,
       headers: server.headers,
+      auth: server.auth,
       enabled: server.enabled,
       owner: server.owner,
       keepAliveInterval: server.keepAliveInterval,
@@ -182,6 +185,7 @@ export class McpServerService {
         args: config.args,
         env: config.env,
         headers: config.headers,
+        auth: config.auth,
         enabled: config.enabled !== false,
         owner: config.owner || 'admin',
         keepAliveInterval: config.keepAliveInterval,

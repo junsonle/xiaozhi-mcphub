@@ -11,6 +11,7 @@ import {
 } from '../services/mcpService.js';
 import { createSafeJSON } from '../utils/serialization.js';
 import { getMcpServerService } from '../services/mcpServerService.js';
+import { completeRemoteOAuthLogin, getPendingRemoteOAuthAuths } from '../services/remoteOAuthService.js';
 
 export const getAllServers = async (_: Request, res: Response): Promise<void> => {
   try {
@@ -422,7 +423,10 @@ export const toggleTool = async (req: Request, res: Response): Promise<void> => 
     }
 
     // Set the tool's enabled state
-    currentConfig.tools[toolName] = { enabled };
+    currentConfig.tools[toolName] = {
+      ...currentConfig.tools[toolName],
+      enabled,
+    };
 
     // Update server in database
     const success = await mcpServerService.updateServer(serverName, currentConfig);
@@ -440,6 +444,92 @@ export const toggleTool = async (req: Request, res: Response): Promise<void> => 
     res.json({
       success: true,
       message: `Tool ${toolName} ${enabled ? 'enabled' : 'disabled'} successfully`,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
+};
+
+// Toggle all tools for a specific server in one database write
+export const bulkToggleTools = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { serverName } = req.params;
+    const { enabled, toolNames } = req.body;
+
+    if (!serverName) {
+      res.status(400).json({
+        success: false,
+        message: 'Server name is required',
+      });
+      return;
+    }
+
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({
+        success: false,
+        message: 'Enabled status must be a boolean',
+      });
+      return;
+    }
+
+    if (!Array.isArray(toolNames) || toolNames.some((name) => typeof name !== 'string')) {
+      res.status(400).json({
+        success: false,
+        message: 'Tool names must be an array of strings',
+      });
+      return;
+    }
+
+    const uniqueToolNames = [...new Set(toolNames)].filter(Boolean);
+    if (uniqueToolNames.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'At least one tool name is required',
+      });
+      return;
+    }
+
+    const mcpServerService = getMcpServerService();
+    const server = await mcpServerService.getServerByName(serverName);
+    
+    if (!server) {
+      res.status(404).json({
+        success: false,
+        message: 'Server not found',
+      });
+      return;
+    }
+
+    const currentConfig = mcpServerService.entityToConfig(server);
+    currentConfig.tools = currentConfig.tools || {};
+
+    for (const toolName of uniqueToolNames) {
+      currentConfig.tools[toolName] = {
+        ...currentConfig.tools[toolName],
+        enabled,
+      };
+    }
+
+    const success = await mcpServerService.updateServer(serverName, currentConfig);
+    if (!success) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update server configuration',
+      });
+      return;
+    }
+
+    notifyToolChanged();
+
+    res.json({
+      success: true,
+      message: `${uniqueToolNames.length} tools ${enabled ? 'enabled' : 'disabled'} successfully`,
+      data: {
+        count: uniqueToolNames.length,
+      },
     });
   } catch (error) {
     res.status(500).json({
@@ -784,5 +874,48 @@ export const updatePromptDescription = async (req: Request, res: Response): Prom
       success: false,
       message: 'Internal server error',
     });
+  }
+};
+
+export const getPendingOAuthAuths = async (_: Request, res: Response): Promise<void> => {
+  try {
+    res.json({
+      success: true,
+      data: getPendingRemoteOAuthAuths(),
+    });
+  } catch (error) {
+    console.error('Failed to get pending OAuth auths:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get pending OAuth auths',
+    });
+  }
+};
+
+export const completeOAuthCallback = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { serverName } = req.params;
+    const code = typeof req.query.code === 'string' ? req.query.code : '';
+    const state = typeof req.query.state === 'string' ? req.query.state : undefined;
+
+    if (!serverName || !code) {
+      res.status(400).send('Missing serverName or code');
+      return;
+    }
+
+    await completeRemoteOAuthLogin(serverName, code, state);
+
+    res
+      .status(200)
+      .send(
+        '<html><body><h1>Authentication complete</h1><p>You can close this window and return to MCPHub.</p></body></html>',
+      );
+  } catch (error) {
+    console.error('Failed to complete OAuth callback:', error);
+    res
+      .status(400)
+      .send(
+        `<html><body><h1>Authentication failed</h1><pre>${String(error)}</pre></body></html>`,
+      );
   }
 };

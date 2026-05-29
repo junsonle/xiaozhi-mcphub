@@ -32,7 +32,7 @@
 - New Xiaozhi endpoint multi-endpoint management and status (backward compatible, focusing on multi-endpoints).
 - New per-endpoint reconnection strategies and global fast-reconnect switch.
 - Enhanced `$smart` intelligent routing (optional) with automatic Xiaozhi linkage.
-- Database uses **PostgreSQL + pgvector**, initializing sample servers and admin by default.
+- Persistence uses local **JSON storage** by default, initializing sample servers and admin automatically.
 
 ## 🔧 Quick Start
 
@@ -42,12 +42,12 @@
 # Pull the image
 docker pull huangjunsen/xiaozhi-mcphub:latest
 
-# Run (adjust DB URL and password to your environment)
+# Run
 docker run -d \
   --name xiaozhi-mcphub \
   -p 3000:3000 \
-  -e DATABASE_URL="postgres://xiaozhi:xiaozhi123456@localhost:5432/xiaozhi_mcphub" \
   -e SMART_ROUTING_ENABLED="false" \
+  -e JSON_DB_PATH="/app/data/db.json" \
   -v $(pwd)/data:/app/data \
   huangjunsen/xiaozhi-mcphub:latest
 
@@ -66,7 +66,7 @@ Default admin: `admin` / `admin123` (please change after first login).
 
 ### Method 2: Docker Compose one-click
 
-This repository ships with `docker-compose.yml` including both `pgvector` and the app:
+This repository ships with `docker-compose.yml`. The app stores runtime data in JSON storage by default:
 
 ```bash
 docker compose up -d
@@ -77,24 +77,21 @@ docker compose logs -f mcphub
 
 Key variables (edit in compose if needed):
 
-- `DATABASE_URL`: `postgres://xiaozhi:<password>@db:5432/xiaozhi_mcphub`
+- `JSON_DB_PATH`: JSON storage file path (default `data/db.json`).
 - `SMART_ROUTING_ENABLED`: Enable/disable smart routing (default "false").
 - Optional: `BASE_PATH`, `JWT_SECRET`, `OPENAI_API_KEY`, etc. (see above)
 
 ### Method 3: Local development
 
-Requirements: Node.js 18+/20+, pnpm, PostgreSQL 16+ (recommended to use the `db` service from the repo's compose).
+Requirements: Node.js 18+/20+ and pnpm. PostgreSQL is no longer required for local persistence.
 
 ```bash
 git clone https://github.com/huangjunsen0406/xiaozhi-mcphub.git
 cd xiaozhi-mcphub
 pnpm install
 
-# Start local database (optional, reuse compose's db)
-docker compose up -d db
-
-# Set database connection (or write to .env)
-export DATABASE_URL="postgres://xiaozhi:xiaozhi123456@localhost:5432/xiaozhi_mcphub"
+# Optional: choose where JSON data is stored
+export JSON_DB_PATH="./data/db.json"
 
 # Start both backend (:3000) and frontend (Vite :5173)
 pnpm dev
@@ -104,7 +101,7 @@ Access the frontend dev server at `http://localhost:5173` (the frontend proxies 
 
 ## 🗺️ Smart Routing (optional)
 
-Set `SMART_ROUTING_ENABLED` to `true` and provide `OPENAI_API_KEY` to enable it. The system uses `pgvector` for vector storage and indexing. If no vectors exist, index building will be skipped and later populated by vector services.
+Set `SMART_ROUTING_ENABLED` to `true` and provide `OPENAI_API_KEY` to enable it. Tool embeddings are stored in the JSON data file and searched with in-process cosine similarity.
 
 ## 🖥️ Console Features (Frontend)
 

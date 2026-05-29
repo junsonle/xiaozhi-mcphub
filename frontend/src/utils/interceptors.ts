@@ -68,29 +68,25 @@ export const uninstallAuthInterceptor = (): void => {
   removeInterceptor(authInterceptor);
 };
 
-// Logging interceptor for development
+// Minimal interceptor: keep request/response silent, only surface actual errors
 export const loggingInterceptor: FetchInterceptor = {
   request: async (url: string, config: RequestInit) => {
-    console.log(`🚀 [${config.method || 'GET'}] ${url}`, config);
     return { url, config };
   },
 
   response: async (response: Response) => {
-    console.log(`✅ [${response.status}] ${response.url}`);
     return response;
   },
 
   error: async (error: Error) => {
-    console.error(`❌ Fetch error:`, error);
+    console.error('Fetch error:', error);
     return error;
   },
 };
 
-// Install the logging interceptor (only in development)
+// Install the logging interceptor
 export const installLoggingInterceptor = (): void => {
-  if (process.env.NODE_ENV === 'development') {
-    addInterceptor(loggingInterceptor);
-  }
+  addInterceptor(loggingInterceptor);
 };
 
 // Uninstall the logging interceptor

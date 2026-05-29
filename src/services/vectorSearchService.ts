@@ -1,7 +1,7 @@
 import { getRepositoryFactory } from '../db/index.js';
 import { VectorEmbeddingRepository } from '../db/repositories/index.js';
 import { Tool } from '../types/index.js';
-import { getAppDataSource, initializeDatabase } from '../db/connection.js';
+import { initializeDatabase } from '../db/connection.js';
 import { getSmartRoutingConfig } from '../utils/smartRouting.js';
 import OpenAI from 'openai';
 
@@ -33,13 +33,26 @@ const getDimensionsForModel = (model: string): number => {
   return EMBEDDING_DIMENSIONS;
 };
 
-// Initialize the OpenAI client with smartRouting configuration
+// Initialize and reuse the OpenAI client with smartRouting configuration
+let cachedOpenAIClient: OpenAI | null = null;
+let cachedOpenAIKey = '';
+let cachedOpenAIBaseURL = '';
+
 const getOpenAIClient = async () => {
   const config = await getOpenAIConfig();
-  return new OpenAI({
-    apiKey: config.apiKey, // Get API key from smartRouting settings or environment variables
-    baseURL: config.baseURL, // Get base URL from smartRouting settings or fallback to default
-  });
+  const apiKey = config.apiKey || '';
+  const baseURL = config.baseURL || '';
+
+  if (!cachedOpenAIClient || cachedOpenAIKey !== apiKey || cachedOpenAIBaseURL !== baseURL) {
+    cachedOpenAIClient = new OpenAI({
+      apiKey,
+      baseURL: baseURL || undefined,
+    });
+    cachedOpenAIKey = apiKey;
+    cachedOpenAIBaseURL = baseURL;
+  }
+
+  return cachedOpenAIClient;
 };
 
 /**
@@ -183,6 +196,18 @@ function generateFallbackEmbedding(text: string): number[] {
   return vector;
 }
 
+const compactSchemaForEmbedding = (schema: any): Record<string, any> => {
+  if (!schema || typeof schema !== 'object') return {};
+  const properties = schema.properties && typeof schema.properties === 'object'
+    ? Object.keys(schema.properties)
+    : [];
+  return {
+    type: schema.type || 'object',
+    properties,
+    required: Array.isArray(schema.required) ? schema.required : [],
+  };
+};
+
 /**
  * Save tool information as vector embeddings
  * @param serverName Server name
@@ -234,17 +259,28 @@ export const saveToolsAsVectorEmbeddings = async (
         // Check database compatibility before saving
         await checkDatabaseVectorDimensions(embedding.length);
 
-        // Save embedding
+        const contentId = `${serverName}:${tool.name}`;
+        const existing = await vectorRepository.findByContentIdentity('tool', contentId);
+        if (
+          existing &&
+          existing.text_content === searchableText &&
+          existing.model === config.embeddingModel &&
+          existing.dimensions === embedding.length
+        ) {
+          continue;
+        }
+
+        // Save compact embedding metadata to keep JSON storage small
         await vectorRepository.saveEmbedding(
           'tool',
-          `${serverName}:${tool.name}`,
+          contentId,
           searchableText,
           embedding,
           {
             serverName,
             toolName: tool.name,
             description: tool.description,
-            inputSchema: tool.inputSchema,
+            inputSchema: compactSchemaForEmbedding(tool.inputSchema),
           },
           config.embeddingModel, // Store the model used for this embedding
         );
@@ -300,41 +336,30 @@ export const searchToolsByVector = async (
     let filteredResults = results;
     if (serverNames && serverNames.length > 0) {
       filteredResults = results.filter((result) => {
-        if (typeof result.embedding.metadata === 'string') {
-          try {
-            const parsedMetadata = JSON.parse(result.embedding.metadata);
-            return serverNames.includes(parsedMetadata.serverName);
-          } catch (error) {
-            return false;
-          }
-        }
-        return false;
+        const metadata =
+          typeof result.embedding.metadata === 'string'
+            ? JSON.parse(result.embedding.metadata)
+            : result.embedding.metadata;
+        return metadata?.serverName && serverNames.includes(metadata.serverName);
       });
     }
 
     // Transform results to a more useful format
     return filteredResults.map((result) => {
-      // Check if we have metadata as a string that needs to be parsed
-      if (result.embedding?.metadata && typeof result.embedding.metadata === 'string') {
-        try {
-          // Parse the metadata string as JSON
-          const parsedMetadata = JSON.parse(result.embedding.metadata);
+      const metadata =
+        result.embedding?.metadata && typeof result.embedding.metadata === 'string'
+          ? JSON.parse(result.embedding.metadata)
+          : result.embedding?.metadata;
 
-          if (parsedMetadata.serverName && parsedMetadata.toolName) {
-            // We have properly structured metadata
-            return {
-              serverName: parsedMetadata.serverName,
-              toolName: parsedMetadata.toolName,
-              description: parsedMetadata.description || '',
-              inputSchema: parsedMetadata.inputSchema || {},
-              similarity: result.similarity,
-              searchableText: result.embedding.text_content,
-            };
-          }
-        } catch (error) {
-          console.error('Error parsing metadata string:', error);
-          // Fall through to the extraction logic below
-        }
+      if (metadata?.serverName && metadata?.toolName) {
+        return {
+          serverName: metadata.serverName,
+          toolName: metadata.toolName,
+          description: metadata.description || '',
+          inputSchema: metadata.inputSchema || {},
+          similarity: result.similarity,
+          searchableText: result.embedding.text_content,
+        };
       }
 
       // Extract tool info from text_content if metadata is not available or parsing failed
@@ -381,42 +406,15 @@ export const getAllVectorizedTools = async (
   }>
 > => {
   try {
-    const config = await getOpenAIConfig();
     const vectorRepository = getRepositoryFactory(
       'vectorEmbeddings',
     )() as VectorEmbeddingRepository;
 
-    // Try to determine what dimension our database is using
-    let dimensionsToUse = getDimensionsForModel(config.embeddingModel); // Default based on the model selected
-
-    try {
-      const result = await getAppDataSource().query(`
-        SELECT atttypmod as dimensions
-        FROM pg_attribute 
-        WHERE attrelid = 'vector_embeddings'::regclass 
-        AND attname = 'embedding'
-      `);
-
-      if (result && result.length > 0 && result[0].dimensions) {
-        const rawValue = result[0].dimensions;
-
-        if (rawValue === -1) {
-          // No type modifier specified
-          dimensionsToUse = getDimensionsForModel(config.embeddingModel);
-        } else {
-          // For this version of pgvector, atttypmod stores the dimension value directly
-          dimensionsToUse = rawValue;
-        }
-      }
-    } catch (error: any) {
-      console.warn('Could not determine vector dimensions from database:', error?.message);
-    }
-
-    // Get all tool embeddings
+    // Get all tool embeddings from JSON storage. Threshold -1 returns every vectorized tool.
     const results = await vectorRepository.searchSimilar(
-      new Array(dimensionsToUse).fill(0), // Zero vector with dimensions matching the database
-      1000, // Large limit
-      -1, // No threshold (get all)
+      [],
+      1000,
+      -1,
       ['tool'],
     );
 
@@ -424,44 +422,26 @@ export const getAllVectorizedTools = async (
     let filteredResults = results;
     if (serverNames && serverNames.length > 0) {
       filteredResults = results.filter((result) => {
-        if (typeof result.embedding.metadata === 'string') {
-          try {
-            const parsedMetadata = JSON.parse(result.embedding.metadata);
-            return serverNames.includes(parsedMetadata.serverName);
-          } catch (error) {
-            return false;
-          }
-        }
-        return false;
+        const metadata =
+          typeof result.embedding.metadata === 'string'
+            ? JSON.parse(result.embedding.metadata)
+            : result.embedding.metadata;
+        return metadata?.serverName && serverNames.includes(metadata.serverName);
       });
     }
 
     // Transform results
     return filteredResults.map((result) => {
-      if (typeof result.embedding.metadata === 'string') {
-        try {
-          const parsedMetadata = JSON.parse(result.embedding.metadata);
-          return {
-            serverName: parsedMetadata.serverName,
-            toolName: parsedMetadata.toolName,
-            description: parsedMetadata.description,
-            inputSchema: parsedMetadata.inputSchema,
-          };
-        } catch (error) {
-          console.error('Error parsing metadata string:', error);
-          return {
-            serverName: 'unknown',
-            toolName: 'unknown',
-            description: '',
-            inputSchema: {},
-          };
-        }
-      }
+      const metadata =
+        typeof result.embedding.metadata === 'string'
+          ? JSON.parse(result.embedding.metadata)
+          : result.embedding.metadata;
+
       return {
-        serverName: 'unknown',
-        toolName: 'unknown',
-        description: '',
-        inputSchema: {},
+        serverName: metadata?.serverName || 'unknown',
+        toolName: metadata?.toolName || 'unknown',
+        description: metadata?.description || '',
+        inputSchema: metadata?.inputSchema || {},
       };
     });
   } catch (error) {
@@ -535,128 +515,9 @@ export const syncAllServerToolsEmbeddings = async (): Promise<void> => {
  * @returns Promise that resolves when check is complete
  */
 async function checkDatabaseVectorDimensions(dimensionsNeeded: number): Promise<void> {
-  try {
-    // First check if database is initialized
-    if (!getAppDataSource().isInitialized) {
-      console.info('Database not initialized, initializing...');
-      await initializeDatabase();
-    }
-
-    // Check current vector dimension in the database
-    // First try to get vector type info directly
-    let vectorTypeInfo;
-    try {
-      vectorTypeInfo = await getAppDataSource().query(`
-        SELECT 
-          atttypmod,
-          format_type(atttypid, atttypmod) as formatted_type
-        FROM pg_attribute 
-        WHERE attrelid = 'vector_embeddings'::regclass 
-        AND attname = 'embedding'
-      `);
-    } catch (error) {
-      console.warn('Could not get vector type info, falling back to atttypmod query');
-    }
-
-    // Fallback to original query
-    const result = await getAppDataSource().query(`
-      SELECT atttypmod as dimensions
-      FROM pg_attribute 
-      WHERE attrelid = 'vector_embeddings'::regclass 
-      AND attname = 'embedding'
-    `);
-
-    let currentDimensions = 0;
-
-    // Parse dimensions from result
-    if (result && result.length > 0 && result[0].dimensions) {
-      if (vectorTypeInfo && vectorTypeInfo.length > 0) {
-        // Try to extract dimensions from formatted type like "vector(1024)"
-        const match = vectorTypeInfo[0].formatted_type?.match(/vector\((\d+)\)/);
-        if (match) {
-          currentDimensions = parseInt(match[1]);
-        }
-      }
-
-      // If we couldn't extract from formatted type, use the atttypmod value directly
-      if (currentDimensions === 0) {
-        const rawValue = result[0].dimensions;
-
-        if (rawValue === -1) {
-          // No type modifier specified
-          currentDimensions = 0;
-        } else {
-          // For this version of pgvector, atttypmod stores the dimension value directly
-          currentDimensions = rawValue;
-        }
-      }
-    }
-
-    // Also check the dimensions stored in actual records for validation
-    try {
-      const recordCheck = await getAppDataSource().query(`
-        SELECT dimensions, model, COUNT(*) as count
-        FROM vector_embeddings 
-        GROUP BY dimensions, model
-        ORDER BY count DESC
-        LIMIT 5
-      `);
-
-      if (recordCheck && recordCheck.length > 0) {
-        // If we couldn't determine dimensions from schema, use the most common dimension from records
-        if (currentDimensions === 0 && recordCheck[0].dimensions) {
-          currentDimensions = recordCheck[0].dimensions;
-        }
-      }
-    } catch (error) {
-      console.warn('Could not check dimensions from actual records:', error);
-    }
-
-    // If no dimensions are set or they don't match what we need, handle the mismatch
-    if (currentDimensions === 0 || currentDimensions !== dimensionsNeeded) {
-      console.log(
-        `Vector dimensions mismatch: database=${currentDimensions}, needed=${dimensionsNeeded}`,
-      );
-
-      if (currentDimensions === 0) {
-        console.log('Setting up vector dimensions for the first time...');
-      } else {
-        console.log('Dimension mismatch detected. Clearing existing incompatible vector data...');
-
-        // Clear all existing vector embeddings with mismatched dimensions
-        await clearMismatchedVectorData(dimensionsNeeded);
-      }
-
-      // Drop any existing indices first
-      await getAppDataSource().query(`DROP INDEX IF EXISTS idx_vector_embeddings_embedding;`);
-
-      // Alter the column type with the new dimensions
-      await getAppDataSource().query(`
-        ALTER TABLE vector_embeddings 
-        ALTER COLUMN embedding TYPE vector(${dimensionsNeeded});
-      `);
-
-      // Create a new index with better error handling
-      try {
-        await getAppDataSource().query(`
-          CREATE INDEX idx_vector_embeddings_embedding 
-          ON vector_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-        `);
-      } catch (indexError: any) {
-        // If the index already exists (code 42P07) or there's a duplicate key constraint (code 23505),
-        // it's not a critical error as the index is already there
-        if (indexError.code === '42P07' || indexError.code === '23505') {
-          console.log('Index already exists, continuing...');
-        } else {
-          console.warn('Warning: Failed to create index, but continuing:', indexError.message);
-        }
-      }
-
-      console.log(`Successfully configured vector dimensions to ${dimensionsNeeded}`);
-    }
-  } catch (error: any) {
-    console.error('Error checking/updating vector dimensions:', error);
-    throw new Error(`Vector dimension check failed: ${error?.message || 'Unknown error'}`);
+  await initializeDatabase();
+  if (dimensionsNeeded <= 0) {
+    throw new Error('Vector dimension check failed: dimensions must be greater than zero');
   }
 }
 
@@ -666,23 +527,11 @@ async function checkDatabaseVectorDimensions(dimensionsNeeded: number): Promise<
  * @returns Promise that resolves when cleanup is complete
  */
 async function clearMismatchedVectorData(expectedDimensions: number): Promise<void> {
-  try {
-    console.log(
-      `Clearing vector embeddings with dimensions different from ${expectedDimensions}...`,
-    );
-
-    // Delete all embeddings that don't match the expected dimensions
-    await getAppDataSource().query(
-      `
-      DELETE FROM vector_embeddings 
-      WHERE dimensions != $1
-    `,
-      [expectedDimensions],
-    );
-
-    console.log('Successfully cleared mismatched vector embeddings');
-  } catch (error: any) {
-    console.error('Error clearing mismatched vector data:', error);
-    throw error;
+  const vectorRepository = getRepositoryFactory('vectorEmbeddings')() as VectorEmbeddingRepository;
+  const embeddings = await vectorRepository.findAll();
+  for (const embedding of embeddings) {
+    if (embedding.dimensions !== expectedDimensions && embedding.id) {
+      await vectorRepository.delete(embedding.id);
+    }
   }
 }

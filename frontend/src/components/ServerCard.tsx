@@ -22,6 +22,7 @@ const ServerCard = ({ server, onRemove, onEdit, onToggle, onRefresh }: ServerCar
   const [isExpanded, setIsExpanded] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isToggling, setIsToggling] = useState(false)
+  const [isBulkTogglingTools, setIsBulkTogglingTools] = useState(false)
   const [showErrorPopover, setShowErrorPopover] = useState(false)
   const [copied, setCopied] = useState(false)
   const errorPopoverRef = useRef<HTMLDivElement>(null)
@@ -148,6 +149,38 @@ const ServerCard = ({ server, onRemove, onEdit, onToggle, onRefresh }: ServerCar
     }
   }
 
+  const handleToggleAllTools = async (enabled: boolean) => {
+    if (isBulkTogglingTools || !server.tools?.length) return
+
+    const toolNames = server.tools.map((tool) => tool.name).filter(Boolean)
+    if (toolNames.length === 0) return
+
+    setIsBulkTogglingTools(true)
+    try {
+      const { toggleAllTools } = await import('@/services/toolService')
+      const result = await toggleAllTools(server.name, toolNames, enabled)
+
+      if (result.success) {
+        showToast(
+          enabled
+            ? `Enabled ${result.count ?? toolNames.length} tools`
+            : `Disabled ${result.count ?? toolNames.length} tools`,
+          'success'
+        )
+        if (onRefresh) {
+          onRefresh()
+        }
+      } else {
+        showToast(result.error || t('tool.toggleFailed'), 'error')
+      }
+    } catch (error) {
+      console.error('Error toggling all tools:', error)
+      showToast(t('tool.toggleFailed'), 'error')
+    } finally {
+      setIsBulkTogglingTools(false)
+    }
+  }
+
   return (
     <>
       <div className={`bg-white shadow rounded-lg p-6 mb-6 page-card transition-all duration-200 ${server.enabled === false ? 'opacity-60' : ''}`}>
@@ -271,7 +304,35 @@ const ServerCard = ({ server, onRemove, onEdit, onToggle, onRefresh }: ServerCar
           <>
             {server.tools && (
               <div className="mt-6">
-                <h6 className={`font-medium ${server.enabled === false ? 'text-gray-600' : 'text-gray-900'} mb-4`}>{t('server.tools')}</h6>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h6 className={`font-medium ${server.enabled === false ? 'text-gray-600' : 'text-gray-900'}`}>{t('server.tools')}</h6>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleToggleAllTools(true)}
+                      disabled={isBulkTogglingTools}
+                      className={`px-3 py-1 text-sm rounded transition-colors ${
+                        isBulkTogglingTools
+                          ? 'bg-gray-200 text-gray-500'
+                          : 'bg-green-100 text-green-800 hover:bg-green-200 btn-secondary'
+                      }`}
+                    >
+                      {isBulkTogglingTools ? t('common.processing') : 'Bật tất cả'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleToggleAllTools(false)}
+                      disabled={isBulkTogglingTools}
+                      className={`px-3 py-1 text-sm rounded transition-colors ${
+                        isBulkTogglingTools
+                          ? 'bg-gray-200 text-gray-500'
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200 btn-primary'
+                      }`}
+                    >
+                      {isBulkTogglingTools ? t('common.processing') : 'Tắt tất cả'}
+                    </button>
+                  </div>
+                </div>
                 <div className="space-y-4">
                   {server.tools.map((tool, index) => (
                     <ToolCard key={index} server={server.name} tool={tool} onToggle={handleToolToggle} />

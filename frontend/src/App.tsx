@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -6,17 +6,17 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ServerProvider } from './contexts/ServerContext';
 import MainLayout from './layouts/MainLayout';
 import ProtectedRoute from './components/ProtectedRoute';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/Dashboard';
-import ServersPage from './pages/ServersPage';
-import GroupsPage from './pages/GroupsPage';
-import UsersPage from './pages/UsersPage';
-import SettingsPage from './pages/SettingsPage';
-import MarketPage from './pages/MarketPage';
-import LogsPage from './pages/LogsPage';
-import XiaozhiEndpointsPage from './pages/XiaozhiEndpointsPage';
 import { getBasePath } from './utils/runtime';
 
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const DashboardPage = lazy(() => import('./pages/Dashboard'));
+const ServersPage = lazy(() => import('./pages/ServersPage'));
+const GroupsPage = lazy(() => import('./pages/GroupsPage'));
+const UsersPage = lazy(() => import('./pages/UsersPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const MarketPage = lazy(() => import('./pages/MarketPage'));
+const LogsPage = lazy(() => import('./pages/LogsPage'));
+const XiaozhiEndpointsPage = lazy(() => import('./pages/XiaozhiEndpointsPage'));
 
 function App() {
   const basename = getBasePath();
@@ -25,30 +25,32 @@ function App() {
       <AuthProvider>
         <ServerProvider>
           <ToastProvider>
-            <Router basename={basename}>
-              <Routes>
-                {/* 公共路由 */}
-                <Route path="/login" element={<LoginPage />} />
+            <Suspense fallback={<div className="p-4 text-sm text-gray-500">Loading...</div>}>
+              <Router basename={basename}>
+                <Routes>
+                  {/* 公共路由 */}
+                  <Route path="/login" element={<LoginPage />} />
 
-                {/* 受保护的路由，使用 MainLayout 作为布局容器 */}
-                <Route element={<ProtectedRoute />}>
-                  <Route element={<MainLayout />}>
-                    <Route path="/" element={<DashboardPage />} />
-                    <Route path="/servers" element={<ServersPage />} />
-                    <Route path="/groups" element={<GroupsPage />} />
-                    <Route path="/users" element={<UsersPage />} />
-                    <Route path="/xiaozhi" element={<XiaozhiEndpointsPage />} />
-                    <Route path="/market" element={<MarketPage />} />
-                    <Route path="/market/:serverName" element={<MarketPage />} />
-                    <Route path="/logs" element={<LogsPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
+                  {/* 受保护的路由，使用 MainLayout 作为布局容器 */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route element={<MainLayout />}>
+                      <Route path="/" element={<DashboardPage />} />
+                      <Route path="/servers" element={<ServersPage />} />
+                      <Route path="/groups" element={<GroupsPage />} />
+                      <Route path="/users" element={<UsersPage />} />
+                      <Route path="/xiaozhi" element={<XiaozhiEndpointsPage />} />
+                      <Route path="/market" element={<MarketPage />} />
+                      <Route path="/market/:serverName" element={<MarketPage />} />
+                      <Route path="/logs" element={<LogsPage />} />
+                      <Route path="/settings" element={<SettingsPage />} />
+                    </Route>
                   </Route>
-                </Route>
 
-                {/* 未匹配的路由重定向到首页 */}
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
-            </Router>
+                  {/* 未匹配的路由重定向到首页 */}
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+              </Router>
+            </Suspense>
           </ToastProvider>
         </ServerProvider>
       </AuthProvider>

@@ -1,13 +1,13 @@
-import BaseRepository from './BaseRepository.js';
+﻿import BaseRepository from './BaseRepository.js';
 import { XiaozhiEndpoint } from '../entities/index.js';
 
 export class XiaozhiEndpointRepository extends BaseRepository<XiaozhiEndpoint> {
   constructor() {
-    super(XiaozhiEndpoint);
+    super('xiaozhiEndpoints');
   }
 
   async findEnabled(): Promise<XiaozhiEndpoint[]> {
-    return this.getRepository().find({ where: { enabled: true } });
+    return this.getCollection().filter((endpoint) => endpoint.enabled);
   }
 
   async updateStatus(
@@ -15,20 +15,37 @@ export class XiaozhiEndpointRepository extends BaseRepository<XiaozhiEndpoint> {
     status: 'connected' | 'disconnected' | 'connecting',
     lastConnected?: Date,
   ): Promise<void> {
-    const data: Partial<XiaozhiEndpoint> = { status } as any;
-    if (status === 'connected') {
-      data.lastConnected = lastConnected || new Date();
-    }
-    await this.getRepository().update(id, data);
+    const collection = this.getCollection();
+    const index = collection.findIndex((endpoint) => endpoint.id === id);
+    if (index === -1) return;
+
+    collection[index] = {
+      ...collection[index],
+      status,
+      lastConnected: status === 'connected' ? lastConnected || new Date() : collection[index].lastConnected,
+      updatedAt: new Date(),
+    };
+    this.persist();
   }
 
   async updateById(id: string, data: Partial<XiaozhiEndpoint>): Promise<XiaozhiEndpoint | null> {
-    await this.getRepository().update(id, data);
-    return await this.findById(id as any);
+    const collection = this.getCollection();
+    const index = collection.findIndex((endpoint) => endpoint.id === id);
+    if (index === -1) return null;
+
+    collection[index] = {
+      ...collection[index],
+      ...data,
+      id,
+      updatedAt: new Date(),
+    };
+    this.persist();
+    return collection[index];
   }
 }
 
 let endpointRepoInstance: XiaozhiEndpointRepository | null = null;
+
 export function getXiaozhiEndpointRepository(): XiaozhiEndpointRepository {
   if (!endpointRepoInstance) {
     endpointRepoInstance = new XiaozhiEndpointRepository();
@@ -37,5 +54,3 @@ export function getXiaozhiEndpointRepository(): XiaozhiEndpointRepository {
 }
 
 export default XiaozhiEndpointRepository;
-
-

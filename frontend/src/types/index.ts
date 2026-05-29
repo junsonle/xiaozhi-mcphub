@@ -105,6 +105,18 @@ export interface Prompt {
   enabled?: boolean;
 }
 
+// Remote MCP HTTP authentication configuration
+export interface RemoteHttpAuthConfig {
+  type: 'none' | 'bearer' | 'basic' | 'oauth';
+  token?: string;
+  username?: string;
+  password?: string;
+  tokenFile?: string;
+  clientId?: string;
+  clientSecret?: string;
+  scopes?: string;
+}
+
 // Server config types
 export interface ServerConfig {
   type?: 'stdio' | 'sse' | 'streamable-http' | 'openapi';
@@ -113,6 +125,7 @@ export interface ServerConfig {
   args?: string[];
   env?: Record<string, string>;
   headers?: Record<string, string>;
+  auth?: RemoteHttpAuthConfig;
   enabled?: boolean;
   tools?: Record<string, { enabled: boolean; description?: string }>; // Tool-specific configurations with enable/disable state and custom descriptions
   prompts?: Record<string, { enabled: boolean; description?: string }>; // Prompt-specific configurations with enable/disable state and custom descriptions
@@ -203,6 +216,16 @@ export interface ServerFormData {
   type?: 'stdio' | 'sse' | 'streamable-http' | 'openapi'; // Added type field with openapi support
   env: EnvVar[];
   headers: EnvVar[];
+  auth?: {
+    type: 'none' | 'bearer' | 'basic' | 'oauth';
+    token?: string;
+    username?: string;
+    password?: string;
+    tokenFile?: string;
+    clientId?: string;
+    clientSecret?: string;
+    scopes?: string;
+  };
   options?: {
     timeout?: number;
     resetTimeoutOnProgress?: boolean;

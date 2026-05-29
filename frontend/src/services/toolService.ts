@@ -86,6 +86,39 @@ export const toggleTool = async (
 };
 
 /**
+ * Toggle all tools' enabled state for a specific server in one request
+ */
+export const toggleAllTools = async (
+  serverName: string,
+  toolNames: string[],
+  enabled: boolean,
+): Promise<{ success: boolean; error?: string; count?: number }> => {
+  try {
+    const response = await apiPost<any>(
+      `/servers/${serverName}/tools/toggle`,
+      { enabled, toolNames },
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('mcphub_token')}`,
+        },
+      },
+    );
+
+    return {
+      success: response.success,
+      error: response.success ? undefined : response.message,
+      count: response.data?.count,
+    };
+  } catch (error) {
+    console.error('Error toggling all tools:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+};
+
+/**
  * Update a tool's description for a specific server
  */
 export const updateToolDescription = async (

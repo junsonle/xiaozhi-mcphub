@@ -1,28 +1,46 @@
-import BaseRepository from './BaseRepository.js';
 import { XiaozhiConfig } from '../entities/index.js';
+import jsonStorage from '../jsonStorage.js';
 
-export class XiaozhiConfigRepository extends BaseRepository<XiaozhiConfig> {
-  constructor() {
-    super(XiaozhiConfig);
-  }
+export class XiaozhiConfigRepository {
+  async getConfig(): Promise<XiaozhiConfig> {
+    const db = jsonStorage.data();
 
-  async getConfig(): Promise<XiaozhiConfig | null> {
-    return await this.getRepository().findOne({ where: { id: 'default' } });
+    if (!db.xiaozhiConfig) {
+      db.xiaozhiConfig = {
+        id: 'default',
+        enabled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as XiaozhiConfig;
+      jsonStorage.persist();
+    }
+
+    return db.xiaozhiConfig;
   }
 
   async saveConfig(config: Partial<XiaozhiConfig>): Promise<XiaozhiConfig> {
-    const repository = this.getRepository();
-    const exists = await this.getConfig();
-    const data: Partial<XiaozhiConfig> = { id: 'default', ...exists, ...config } as any;
-    if (exists) {
-      await repository.update('default', data);
-      return (await this.getConfig())!;
-    }
-    return await repository.save(repository.create(data));
+    const db = jsonStorage.data();
+    const existing = db.xiaozhiConfig || ({} as XiaozhiConfig);
+    const isNew = !db.xiaozhiConfig;
+
+    db.xiaozhiConfig = {
+      ...existing,
+      ...config,
+      id: 'default',
+      enabled: config.enabled ?? existing.enabled ?? true,
+      loadBalancing: config.loadBalancing ?? existing.loadBalancing,
+      createdAt: existing.createdAt || new Date(),
+      updatedAt: new Date(),
+    } as XiaozhiConfig;
+
+    jsonStorage.timestamps(db.xiaozhiConfig, isNew);
+    jsonStorage.persist();
+    return db.xiaozhiConfig;
   }
 }
 
 let xiaozhiConfigRepoInstance: XiaozhiConfigRepository | null = null;
+
 export function getXiaozhiConfigRepository(): XiaozhiConfigRepository {
   if (!xiaozhiConfigRepoInstance) {
     xiaozhiConfigRepoInstance = new XiaozhiConfigRepository();
@@ -31,5 +49,3 @@ export function getXiaozhiConfigRepository(): XiaozhiConfigRepository {
 }
 
 export default XiaozhiConfigRepository;
-
-

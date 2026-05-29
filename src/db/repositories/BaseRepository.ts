@@ -1,68 +1,113 @@
-import { Repository, EntityTarget, ObjectLiteral } from 'typeorm';
-import { getAppDataSource } from '../connection.js';
+import jsonStorage, { JsonDatabase } from '../jsonStorage.js';
 
-/**
- * Base repository class with common CRUD operations
- */
-export class BaseRepository<T extends ObjectLiteral> {
-  protected readonly repository: Repository<T>;
+type CollectionKey = keyof Pick<
+  JsonDatabase,
+  'users' | 'mcpServers' | 'groups' | 'xiaozhiEndpoints' | 'vectorEmbeddings'
+>;
 
-  constructor(entityClass: EntityTarget<T>) {
-    this.repository = getAppDataSource().getRepository(entityClass);
+export class BaseRepository<T extends { id?: string; createdAt?: Date; updatedAt?: Date }> {
+  protected readonly collectionKey: CollectionKey;
+
+  constructor(collectionKey: CollectionKey) {
+    this.collectionKey = collectionKey;
   }
 
-  /**
-   * Get repository access
-   */
-  getRepository(): Repository<T> {
-    return this.repository;
+  protected getCollection(): T[] {
+    return jsonStorage.data()[this.collectionKey] as unknown as T[];
   }
 
-  /**
-   * Find all entities
-   */
+  protected persist(): void {
+    jsonStorage.persist();
+  }
+
+  getRepository(): T[] {
+    return this.getCollection();
+  }
+
   async findAll(): Promise<T[]> {
-    return this.repository.find();
+    return [...this.getCollection()];
   }
 
-  /**
-   * Find entity by ID
-   * @param id Entity ID
-   */
   async findById(id: string | number): Promise<T | null> {
-    return this.repository.findOneBy({ id } as any);
+    return this.getCollection().find((item) => String(item.id) === String(id)) || null;
   }
 
-  /**
-   * Save or update an entity
-   * @param entity Entity to save
-   */
   async save(entity: Partial<T>): Promise<T> {
-    return this.repository.save(entity as any);
+    const collection = this.getCollection();
+    const existingIndex =
+      entity.id !== undefined
+        ? collection.findIndex((item) => String(item.id) === String(entity.id))
+        : -1;
+
+    const isNew = existingIndex === -1;
+    const nextEntity: T = {
+      ...(isNew ? {} : collection[existingIndex]),
+      ...entity,
+    } as T;
+
+    if (isNew && !nextEntity.id) {
+      nextEntity.id = jsonStorage.generateId() as T['id'];
+    }
+
+    jsonStorage.timestamps(nextEntity, isNew);
+
+    if (isNew) {
+      collection.push(nextEntity);
+    } else {
+      collection[existingIndex] = nextEntity;
+    }
+
+    this.persist();
+    return nextEntity;
   }
 
-  /**
-   * Save multiple entities
-   * @param entities Array of entities to save
-   */
   async saveMany(entities: Partial<T>[]): Promise<T[]> {
-    return this.repository.save(entities as any[]);
+    const collection = this.getCollection();
+    const results: T[] = [];
+
+    for (const entity of entities) {
+      const existingIndex =
+        entity.id !== undefined
+          ? collection.findIndex((item) => String(item.id) === String(entity.id))
+          : -1;
+
+      const isNew = existingIndex === -1;
+      const nextEntity: T = {
+        ...(isNew ? {} : collection[existingIndex]),
+        ...entity,
+      } as T;
+
+      if (isNew && !nextEntity.id) {
+        nextEntity.id = jsonStorage.generateId() as T['id'];
+      }
+
+      jsonStorage.timestamps(nextEntity, isNew);
+
+      if (isNew) {
+        collection.push(nextEntity);
+      } else {
+        collection[existingIndex] = nextEntity;
+      }
+
+      results.push(nextEntity);
+    }
+
+    this.persist();
+    return results;
   }
 
-  /**
-   * Delete an entity by ID
-   * @param id Entity ID
-   */
   async delete(id: string | number): Promise<boolean> {
-    const result = await this.repository.delete(id);
-    return result.affected !== null && result.affected !== undefined && result.affected > 0;
+    const collection = this.getCollection();
+    const index = collection.findIndex((item) => String(item.id) === String(id));
+    if (index === -1) return false;
+
+    collection.splice(index, 1);
+    this.persist();
+    return true;
   }
 
-  /**
-   * Count total entities
-   */
   async count(): Promise<number> {
-    return this.repository.count();
+    return this.getCollection().length;
   }
 }
 

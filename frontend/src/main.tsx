@@ -11,9 +11,7 @@ import { loadRuntimeConfig } from './utils/runtime';
 // Load runtime configuration before starting the app
 async function initializeApp() {
   try {
-    console.log('Loading runtime configuration...');
     const config = await loadRuntimeConfig();
-    console.log('Runtime configuration loaded:', config);
 
     // Store config in window object
     window.__MCPHUB_CONFIG__ = config;
@@ -28,7 +26,6 @@ async function initializeApp() {
     console.error('Failed to initialize app:', error);
 
     // Fallback: start app with default config
-    console.log('Starting app with default configuration...');
     window.__MCPHUB_CONFIG__ = {
       basePath: '',
       version: 'dev',
